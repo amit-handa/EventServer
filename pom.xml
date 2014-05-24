@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.pimco.techops</groupId>
-  <artifactId>eventServer</artifactId>
+  <artifactId>EventServer</artifactId>
   <packaging>jar</packaging>
   <version>0.1</version>
   <name>Project - eventServer</name>
