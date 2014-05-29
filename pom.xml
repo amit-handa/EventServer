@@ -4,11 +4,18 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.pimco.techops</groupId>
-  <artifactId>EventServer</artifactId>
+  <artifactId>pint</artifactId>
   <packaging>jar</packaging>
-  <version>0.1</version>
-  <name>Project - eventServer</name>
+  <version>1.0.0</version>
+  <name>Project - pint</name>
   <url>http://maven.apache.org</url>
+
+  <!--parent>
+	<groupId>com.pimco</groupId>
+	<artifactId>pimco-parent</artifactId>
+	<version>1.13</version>
+  </parent-->
+
 
   <parent>
      <groupId>org.sonatype.oss</groupId>
@@ -33,10 +40,11 @@
 
     <!-- The directory where the module will be assembled - you can override this on the command line
     with -Dmods.directory=mydir -->
-    <mods.directory>target/mods</mods.directory>
+    <mods.directory>/home/ahanda/tools/vertx/mods</mods.directory>
 
     <!--Dependency versions-->
-    <vertx.version>2.1M1</vertx.version>
+    <vertx.version0>2.1M1</vertx.version0>
+    <vertx.version>2.0.2-final</vertx.version>
     <vertx.testtools.version>2.0.2-final</vertx.testtools.version>
     <junit.version>4.11</junit.version>
 
@@ -50,12 +58,17 @@
     <maven.surefire.report.plugin.version>2.14</maven.surefire.report.plugin.version>
     <maven.javadoc.plugin.version>2.9</maven.javadoc.plugin.version>
     <maven.dependency.plugin.version>2.7</maven.dependency.plugin.version>
+
+	<jackson.version>2.3.1</jackson.version>
+	<joda.version>2.3</joda.version>
+	<logback.version>1.0.13</logback.version>
+	<spring.version>3.2.4.RELEASE</spring.version>
   </properties>
 
   <repositories>
     <repository>
-      <id>sonatype-nexus-snapshots</id>
-      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+      <id>ibiblio</id>
+      <url>http://mirrors.ibiblio.org/maven2</url>
     </repository>
   </repositories>
 
@@ -67,18 +80,127 @@
       <version>${vertx.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-platform</artifactId>
       <version>${vertx.version}</version>
       <scope>provided</scope>
     </dependency>
-    <dependency>
+
+    <!--dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-hazelcast</artifactId>
-      <version>${vertx.version}</version>
+      <version>${vertx.version0}</version>
       <scope>provided</scope>
+    </dependency-->
+
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>mod-rxvertx</artifactId>
+      <version>1.0.0-beta2</version>
+      <scope>compile</scope>
     </dependency>
+
+    <dependency>
+      <groupId>com.jetdrone</groupId>
+      <artifactId>yoke</artifactId>
+      <version>1.0.3</version>
+      <scope>compile</scope>
+    </dependency>
+
+	<dependency>
+	  <groupId>com.fasterxml.jackson.core</groupId>
+	  <artifactId>jackson-annotations</artifactId>
+	  <version>2.3.0</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>com.fasterxml.jackson.core</groupId>
+	  <artifactId>jackson-core</artifactId>
+	  <version>${jackson.version}</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>com.fasterxml.jackson.core</groupId>
+	  <artifactId>jackson-databind</artifactId>
+	  <version>${jackson.version}</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>com.fasterxml.jackson.datatype</groupId>
+	  <artifactId>jackson-datatype-joda</artifactId>
+	  <version>${jackson.version}</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>joda-time</groupId>
+	  <artifactId>joda-time</artifactId>
+	  <version>${joda.version}</version>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework</groupId>
+		<artifactId>spring-expression</artifactId>
+		<version>4.0.0.RELEASE</version>
+		<exclusions>
+		  <exclusion><groupId>commons-logging</groupId><artifactId>commons-logging</artifactId> </exclusion>
+		</exclusions>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework</groupId>
+		<artifactId>spring-jdbc</artifactId>
+		<version>${spring.version}</version>
+		<exclusions>
+		  <exclusion><groupId>commons-logging</groupId><artifactId>commons-logging</artifactId> </exclusion>
+		</exclusions>
+	</dependency>
+
+	<dependency>
+	  <groupId>org.apache.commons</groupId>
+	  <artifactId>commons-lang3</artifactId>
+	  <version>3.1</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>commons-codec</groupId>
+	  <artifactId>commons-codec</artifactId>
+	  <version>1.8</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>com.google.guava</groupId>
+	  <artifactId>guava</artifactId>
+	  <version>14.0.1</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>org.jetbrains</groupId>
+	  <artifactId>annotations</artifactId>
+	  <version>13.0</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>io.netty</groupId>
+	  <artifactId>netty-all</artifactId>
+	  <version>4.0.11.Final</version>
+	</dependency>
+
+
+	<dependency>
+	  <groupId>ch.qos.logback</groupId>
+	  <artifactId>logback-classic</artifactId>
+      <version>${logback.version}</version>
+	</dependency>
+
+	<dependency>
+	  <groupId>ch.qos.logback</groupId>
+	  <artifactId>logback-core</artifactId>
+      <version>${logback.version}</version>
+	</dependency>
+
+
     <!--Test dependencies-->
     <dependency>
       <groupId>junit</groupId>
