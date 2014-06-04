@@ -15,125 +15,123 @@
  */
 
 (function DemoViewModel() {
-
   var that = this;
-  var eb = new vertx.EventBus(window.location.protocol + '//' + window.location.hostname + ':' + window.location.port + '/eventbus');
-  that.items = ko.observableArray([]);
+  var EventsProto = {
+	add : function( events ) {
+	  for( var i = 0, len = events.length; i < len; i++ ) {
+		this.body.push( events[i] );
+	  }
+	},
+
+	html : function( events ) {
+	  var eview = '<table class="bordered-table"> <thead> <th>eId</th> <th>eTime</th> <th>status</th> <th>message</th> </thead>';
+	  var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: eId.ids[0]"></td> <td data-bind="text: eTime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
+	  return eview + ebody + '</table>';
+	}
+  };
+
+  var AllEventsProto = {
+	get : function( esid, data ) {
+	  console.info( "get events : " + esid + data );
+
+	  var esidC = this[esid];
+	  if( esidC == null )
+		esidC = this[esid] = {};
+
+	  var events = esidC[data];
+	  if( events == null ) {
+		events = esidC[data] = Object.create( EventsProto, {} );
+		events.filter = '#cmpDate( #e.eTime, "Feb 10 2014 02:11:16") > 0';
+		events.body = undefined;
+	  }
+
+	  console.info( "return " + events );
+	  return events;
+	}
+  };
+  that.allEvents = Object.create( AllEventsProto, {} );
+
+  function EventSource( id, es ) {
+	this.id = id;
+	for( var prop in es ) {
+	  this[prop] = es[prop];
+	}
+  }
+
+  that.loadFeed = function( esid, data ) {
+	var esname = that.esName( data );
+	esname = esid + ':' + esname;
+	var escontent = document.getElementById( esname );
+
+	var pillc = document.getElementById( 'pill-content' );
+	for( var esdivi = 0, allesdivs = pillc.childNodes.length; esdivi < allesdivs; esdivi++ ) {
+	  var esdiv = pillc.childNodes[esdivi];
+	  esdiv.style="display:none";
+	}
+
+	if( escontent == null ) {
+	  escontent = document.createElement( "div" );
+	  escontent.id = esname;
+	  escontent.style = "display:block";
+
+	  escontent.innerHTML = '<table class="bordered-table"> <thead> <th>' + esname + '</th> </thead></thead>';
+
+	  pillc.appendChild( escontent );
+	}
+	escontent.style = "display:block";
+
+	var events = that.allEvents.get( esid, data );
+	console.info( "events " + esname + events );
+	eb.send( 'PINT.events', { "http" : [ "post", "/pint/events/search" ],
+		"body" : [ "EventCache", "findEvents", {
+				"eventSource" : { "type" : esid, "body" : data },
+				"events" : { "body" : events.filter }
+		} ]
+	  }, function(reply) {
+	  reply = JSON.parse( reply );
+	  if( events.body == undefined ) {
+		events.body = ko.observableArray( reply );
+		escontent.innerHTML = events.html();
+		ko.applyBindings( events, document.getElementById( esname ) );
+	  } else events.add( reply );
+	  console.info( "events received ! " + reply );
+	});
+  };
+
+  that.esName = function( esm ) {
+	var esn = '';
+	var i = 0;
+	for( var k in esm ) {
+	  if( i++ )
+		esn += '_';
+	  esn += esm[k];
+	}
+	return esn;
+  };
+
+  var eb = new vertx.EventBus(window.location.protocol + '//' + window.location.hostname + ':' + window.location.port + '/spint');
 
   eb.onopen = function() {
+	eb.send('PINT.events', { "http" : [ "post", "/pint/sessions" ],
+	  "body" : "ahanda" }, function(reply) {
+	  console.info( 'received ' + reply );
+	  reply = JSON.parse( reply );
+	  console.info( 'AHanda ' + reply.userConfig );
 
-    // Get the static data
+	  var eventSources = {};
+	  var es = reply.toolConfig.eventSources;
+	  for( var estype in es ) {
+		  var tmp = new EventSource( estype, es[estype] );
+		  eventSources[estype] = tmp;
+	  }
 
-    eb.send('vertx.mongopersistor', {action: 'find', collection: 'albums', matcher: {} },
-      function(reply) {
-        if (reply.status === 'ok') {
-          var albumArray = [];
-          for (var i = 0; i < reply.results.length; i++) {
-            albumArray[i] = new Album(reply.results[i]);
-          }
-          that.albums = ko.observableArray(albumArray);
-          ko.applyBindings(that);
-        } else {
-          console.error('Failed to retrieve albums: ' + reply.message);
-        }
-      });
+	  that.eventSources = ko.observable( eventSources );
+
+	  ko.applyBindings( that );
+	});
   };
 
   eb.onclose = function() {
     eb = null;
   };
-
-  that.addToCart = function(album) {
-    console.log("Adding to cart: " + JSON.stringify(album));
-    for (var i = 0; i < that.items().length; i++) {
-      var compare = that.items()[i];
-      if (compare.album._id === album._id) {
-        compare.quantity(compare.quantity() + 1);
-        return;
-      }
-    }
-    that.items.push(new CartItem(album));
-  };
-
-  that.removeFromCart = function(cartItem) {
-    that.items.remove(cartItem);
-  };
-
-  that.total = ko.computed(function() {
-    var tot = 0;
-    for (var i = 0; i < that.items().length; i++) {
-      var item = that.items()[i];
-      tot += item.quantity() * item.album.price;
-    }
-    tot = '$' + tot.toFixed(2);
-    return tot;
-  });
-
-  that.orderReady = ko.computed(function() {
-    var or =  that.items().length > 0 && that.loggedIn;
-    return or;
-  });
-
-  that.orderSubmitted = ko.observable(false);
-
-  that.submitOrder = function() {
-
-    if (!orderReady()) {
-      return;
-    }
-
-    var orderItems = ko.toJS(that.items);
-    var orderMsg = {
-      action: "save",
-      collection: "orders",
-      document: {
-        username: that.username(),
-        items: orderItems
-      }
-    }
-
-    eb.send('vertx.mongopersistor', orderMsg, function(reply) {
-      if (reply.status === 'ok') {
-        that.orderSubmitted(true);
-        // Timeout the order confirmation box after 2 seconds
-        // window.setTimeout(function() { that.orderSubmitted(false); }, 2000);
-      } else {
-        console.error('Failed to accept order');
-      }
-    });
-  };
-
-  that.username = ko.observable('');
-  that.password = ko.observable('');
-  that.loggedIn = ko.observable(false);
-
-  that.login = function() {
-    if (that.username().trim() != '' && that.password().trim() != '') {
-      eb.login(that.username(), that.password(), function (reply) {
-        if (reply.status === 'ok') {
-          that.loggedIn(true);
-        } else {
-          alert('invalid login');
-        }
-      });
-    }
-  }
-
-  function Album(json) {
-    var that = this;
-    that._id = json._id;
-    that.genre = json.genre;
-    that.artist = json.artist;
-    that.title = json.title;
-    that.price = json.price;
-    that.formattedPrice = ko.computed(function() {
-      return '$' + that.price.toFixed(2);
-    });
-  }
-
-  function CartItem(album) {
-    var that = this;
-    that.album = album;
-    that.quantity = ko.observable(1);
-  }
 })();

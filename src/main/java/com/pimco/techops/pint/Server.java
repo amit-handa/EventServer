@@ -10,6 +10,7 @@ import java.io.*;	// input/output stream
 import org.vertx.java.core.Handler;
 import org.vertx.java.platform.*;	//Container;Verticle;
 import org.vertx.java.core.http.*;	//RouteMatcher;HttpServerRequest
+import org.vertx.java.core.sockjs.*;	//RouteMatcher;SockJSServerRequest
 import org.vertx.java.core.eventbus.*;	//Message
 import org.vertx.java.core.buffer.*;	//Buffer
 import org.vertx.java.core.json.*;	//JsonObject
@@ -186,6 +187,7 @@ public class Server extends Verticle {
 		public void handle( Message<JsonObject> msg ) {
 			logger.info( "Received pintTracker message: {}", msg.body() );
 			JsonObject msgo = msg.body();
+			String reply = null;
 			JsonArray opType = msgo.getArray( "http" );
 			if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/events" ) )
@@ -193,16 +195,25 @@ public class Server extends Verticle {
 			else if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/sessions" ) ) {
 				String uid = msgo.getString( "body" );
-				String sessi = _openSession( uid );
-				logger.info( "Opened Session for {} : {}", uid, sessi );
+				reply = _openSession( uid );
+				logger.info( "Opened Session for {} : {}", uid, reply );
 			} else if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/events/search" ) ) {
 				List< Event > events = eventCache.findEvents( ((JsonObject)msgo.getArray( "body" ).get( 2 )).encode() );
+				try {
+				reply = jsonOM.writeValueAsString( events );
+				} catch( Exception e ) {
+					logger.error( "searchEvent Response; {} !", e.getMessage()  );
+				}
 				logger.info( "Found events: {}", events );
 			}
+			if( reply != null ) msg.reply( reply );
 		}
 	};
+
 	vertx.eventBus().registerHandler( "PINT.FSReq", pintTracker );
+
+	vertx.eventBus().registerHandler( "PINT.events", pintTracker );
 
 	init( System.getProperty( "PINT.datadir" ) );
 
@@ -217,12 +228,20 @@ public class Server extends Verticle {
     r.post("/pint/events", addEvents );
     r.post("/pint/events/search", searchEvents );
 
-    //vertx.createHttpServer().listen(8091);
+    HttpServer httpServer = vertx.createHttpServer();
 	new Yoke( this )
 		//.use( new BodyParser() )
 		.use( new Static( "web" ) )
 		.use( auth )
-		.use( r ).listen( 8090 );
+		.use( r ).listen( httpServer );
+
+	SockJSServer sockServer = vertx.createSockJSServer( httpServer );
+	JsonObject config = new JsonObject().putString( "prefix", "/spint" );
+	JsonArray noPermitted = new JsonArray();
+	noPermitted.add( new JsonObject() );
+	sockServer.bridge( config, noPermitted, noPermitted );
+
+	httpServer.listen( 8090, "192.168.1.18" );
 
 	logger.info( "Creating Server on 8090! {}", eventCache );
 	} catch( Exception e ) {

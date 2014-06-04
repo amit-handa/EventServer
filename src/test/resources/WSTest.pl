@@ -1,5 +1,5 @@
-#!/appl/pm/vendor/perl/sol-sparc/perl-5.14.1/bin/perl
-#/bin/env perl
+#!/bin/env perl
+#/appl/pm/vendor/perl/sol-sparc/perl-5.14.1/bin/perl
 
 use warnings;
 use strict;
@@ -38,7 +38,7 @@ my $jsonH = JSON->new->allow_nonref;
 my $browser = LWP::UserAgent->new;
 $browser->cookie_jar( { file => 'cookie.txt', autosave => 1, ignore_discard => 1 } );
 
-my $pintURL = "http://devpmapp1:8090/pint";
+my $pintURL = "http://localhost:8090/pint";
 my $sessionURL  = "/sessions/$user";
 if( $signinOps =~ /open/ ) {
 	my $sessReq = HTTP::Request->new( 'POST', $pintURL.$sessionURL );
