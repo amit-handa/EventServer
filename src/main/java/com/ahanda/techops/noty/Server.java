@@ -1,5 +1,8 @@
 package com.ahanda.techops.noty;
 
+import com.ahanda.techops.noty.ds.*;
+import com.ahanda.techops.noty.ds.event.*;
+
 import java.util.*;	//objservable
 import java.nio.file.*; //Path,paths,files;
 import java.io.*;	// input/output stream
@@ -16,9 +19,6 @@ import io.vertx.rxcore.*;	//rxsupport
 import io.vertx.rxcore.java.*;
 import rx.Observable;
 import rx.util.functions.*;	//Func1, Action1
-
-import com.ahanda.techops.noty.ds.*;
-import com.ahanda.techops.noty.ds.event.*;
 import com.fasterxml.jackson.databind.*; //ObjectMapper;JsonNode
 import com.jetdrone.vertx.yoke.*; //Yoke
 import com.jetdrone.vertx.yoke.middleware.*; //Router
@@ -43,7 +43,7 @@ public class Server extends Verticle {
 		Map< String, Object > initialConf = new HashMap< String, Object >();
 		UserConfig uc = userconfs.getUserConf( uid );
 		initialConf.put( "userConfig", uc );
-		initialConf.put( "toolConfig", toolConfig );
+		initialConf.put( "toolConfig", toolConfig.getConfig() );
 
 		String str = null;
 		try {
@@ -165,8 +165,10 @@ public class Server extends Verticle {
 		eventCache = new EventCache();
 		userconfs = new UserConfigManager( datadir );
 		toolConfig = new ToolConfig( datadir );
+		eventCache.setToolConfig( toolConfig );
+
 		logger.info( "Launching verticle for FSPintReq" );
-		container.deployVerticle( "com.pimco.techops.pint.FSPintReq" );
+		container.deployVerticle( "com.ahanda.techops.noty.FSPintReq" );
 
 		InputStream is = null;
 		try {

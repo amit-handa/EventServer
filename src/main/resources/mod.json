@@ -1,7 +1,7 @@
 {
 
   // Java verticle
-  "main":"com.pimco.techops.pint.Server",
+  "main":"com.ahanda.techops.noty.Server",
   //"includes":"com.jetdrone~yoke~1.0.3",
 
   // In this example we also provide various other versions of the main verticle, you can uncomment this and

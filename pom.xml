@@ -3,11 +3,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.pimco.techops</groupId>
-  <artifactId>pint</artifactId>
+  <groupId>com.ahanda.techops</groupId>
+  <artifactId>noty</artifactId>
   <packaging>jar</packaging>
   <version>1.0.0</version>
-  <name>Project - pint</name>
+  <name>Project - noty</name>
   <url>http://maven.apache.org</url>
 
   <!--parent>
@@ -40,7 +40,7 @@
 
     <!-- The directory where the module will be assembled - you can override this on the command line
     with -Dmods.directory=mydir -->
-    <mods.directory>/home/ahanda/tools/vertx/mods</mods.directory>
+    <mods.directory>/home/akhanda/tools/vertx/mods</mods.directory>
 
     <!--Dependency versions-->
     <vertx.version0>2.1M1</vertx.version0>

@@ -1,61 +1,44 @@
-<!--
-  ~ Copyright 2011-2012 the original author or authors.
-  ~
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
-  ~
-  ~     http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
-
+<!DOCTYPE html>
 <html>
-<head>
-  <link rel="stylesheet/less" href="css/bootstrap.less">
-  <script src="js3rdparty/less-1.2.1.min.js"></script>
-  <script src='js3rdparty/jquery-1.7.1.min.js'></script>
-  <script src='js3rdparty/bootstrap-tabs.js'></script>
-  <title>Welcome to PINT</title>
+  <head>
+    <meta charset="utf-8">
+	<title>PiNT : Pimco Notification Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+	<link rel="stylesheet/less" href="css/bootstrap.less">
+	<script src="js3rdparty/less-1.2.1.min.js"></script>
+	<script src='js3rdparty/jquery-2.1.1.js'></script>
+
+	<style type="text/css">
+	  #menu {
+		width: 400px;
+		cursor: pointer;
+	  }
+	  .header {
+		background-color: #ffffff;
+	  }
+	  .items {
+		background-color: #ffffff;
+	  }
+	</style>
 </head>
 
 <body>
 
-<div class="container-fluid">
+  <ul id="menu" data-bind="template: { name : 'esourcesTmpl', data : eventSources }" ></ul>
 
-  <div class="sidebar">
-	<h2>EventSources</h2>
-	<ul class="tabs" data-bind="foreach: { data : Object.keys( eventSources() ) }" >
-	  <h3 data-bind="text: $data"></h3>
-	  <ul class="tabs" data-bind="foreach: eventSources()[$data]['ids']" >
-		<li class="menu" ><a data-bind="text: esName( $data ), click: function( data ) { console.info( 'oooooooo ' + $parents[0] ); loadFeed( $parents[0], data ); }"></a></li>
-	  </ul>
-	</ul>
-  </div>
-
-  <div class="content">
-
-    <div class="row">
-
-      <div class="pill-content" id="pill-content" > </div>
-
-    </div>
-  </div>
-</div>
+  <script id="esourcesTmpl" type="text/html">
+	<li>
+	  <div class="header" data-bind="text: esName( $data.esid ), accordion: openState, click: toggle"></div>
+	  <ul class="items" data-bind="template: { name : 'esourcesTmpl', foreach: $data.children }"></ul>
+	</li>
+  </script>
 
 </body>
 
-<script>
-  $(function () {
-    $('.tabs').tabs();
-  })
-</script>
 <script src='js3rdparty/sockjs-min-0.3.4.js'></script>
-<script src='js3rdparty/knockout-2.0.0.js'></script>
+<script src='js3rdparty/knockout-3.1.0.js'></script>
 <script src='js/vertxbus.js'></script>
 <script src='js/client_app.js'></script>
 

@@ -14,8 +14,57 @@
  * limitations under the License.
  */
 
+ko.bindingHandlers.accordion = {
+  init: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+	  $(element).next().show();
+  },
+  update: function (element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
+	var slideUpTime = 300;
+	var slideDownTime = 400;
+
+	var openState = ko.utils.unwrapObservable(valueAccessor());
+	var focussed = openState.focussed;
+	var shouldOpen = openState.shouldOpen;
+
+	if (focussed) {
+	  var prevESrc = bindingContext.$root.prevESource;
+	  if( prevESrc != null ) {
+		console.info( "currrrrrrrrrrrrrrES !" + prevESrc.style.color );
+		prevESrc.removeAttribute( 'style' );
+	  }
+
+	  prevESrc = element.parentNode;
+	  prevESrc.style.color = 'red';
+	  bindingContext.$root.prevESource = prevESrc;
+
+	  var parents = bindingContext.$parents;
+	  if( parents.length > 1 ) {
+		var secLevelSources = parents[parents.length-2].children();
+		var currSource = bindingContext.$data;
+		if( parents.length > 2 ) currSource = parents[parents.length-3];
+		$.each( secLevelSources, function (idx, esource ) {
+		  if( esource != currSource ) {
+			esource.openState( { focussed : false, shouldOpen: false } );
+		  }
+		});
+	  }
+	}
+
+	var dropDown = $(element).next();
+
+	if (focussed && shouldOpen) {
+		dropDown.slideDown(slideDownTime);
+	} else if (focussed && !shouldOpen) {
+		dropDown.slideUp(slideUpTime);
+	} else if (!focussed && !shouldOpen) {
+		dropDown.slideUp(slideUpTime);
+	}
+  }
+};
+ 
 (function DemoViewModel() {
   var that = this;
+  that.prevESource = null;
   var EventsProto = {
 	add : function( events ) {
 	  for( var i = 0, len = events.length; i < len; i++ ) {
@@ -30,7 +79,29 @@
 	}
   };
 
-  var AllEventsProto = {
+  function EventSources( esources ) {
+	var self = this;
+	self.openState = ko.observable( { focussed : false, shouldOpen : false } );
+	for( var estype in esources ) {
+	  if( estype != 'children' )
+		self[estype] = esources[estype];
+	}
+
+	if( esources.children ) {
+	  var tmp = [];
+	  for( var i = 0, len = esources.children.length; i < len; i++ ) {
+		tmp.push( new EventSources( esources.children[i] ) );
+	  }
+	  self.children = ko.observableArray( tmp );
+	}
+  };
+
+  EventSources.prototype = {
+	toggle : function( esrc, e ) {
+	  console.info( "togggggge! " + esName( esrc.esid ) + esName( this.esid ) );
+	  var shouldOpen = esrc.openState().shouldOpen;
+	  this.openState( { focussed : true, shouldOpen : !shouldOpen } );
+	},
 	get : function( esid, data ) {
 	  console.info( "get events : " + esid + data );
 
@@ -49,7 +120,7 @@
 	  return events;
 	}
   };
-  that.allEvents = Object.create( AllEventsProto, {} );
+  that.allEvents = {};
 
   function EventSource( id, es ) {
 	this.id = id;
@@ -93,6 +164,7 @@
 		events.body = ko.observableArray( reply );
 		escontent.innerHTML = events.html();
 		ko.applyBindings( events, document.getElementById( esname ) );
+
 	  } else events.add( reply );
 	  console.info( "events received ! " + reply );
 	});
@@ -106,6 +178,7 @@
 		esn += '_';
 	  esn += esm[k];
 	}
+	console.info( "esname: " + esn );
 	return esn;
   };
 
@@ -118,13 +191,7 @@
 	  reply = JSON.parse( reply );
 	  console.info( 'AHanda ' + reply.userConfig );
 
-	  var eventSources = {};
-	  var es = reply.toolConfig.eventSources;
-	  for( var estype in es ) {
-		  var tmp = new EventSource( estype, es[estype] );
-		  eventSources[estype] = tmp;
-	  }
-
+	  var eventSources = new EventSources( reply.toolConfig );
 	  that.eventSources = ko.observable( eventSources );
 
 	  ko.applyBindings( that );

@@ -1,4 +1,6 @@
 package com.ahanda.techops.noty.ds;
+import com.ahanda.techops.noty.ds.event.*;
+
 import java.util.*;
 import java.lang.reflect.*;	//method
 
@@ -6,15 +8,12 @@ import org.joda.time.*;
 import org.joda.time.format.*;	//DateTimeFormat
 
 import javax.sql.DataSource;
-
 import java.sql.*;
 
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
 import java.util.concurrent.*;	// executors, scheduledexecutorsrvice, scheduledfuture, timeunit
-
-import com.ahanda.techops.noty.ds.event.*;
 import com.fasterxml.jackson.databind.*; //ObjectMapper;JsonNode
 import com.fasterxml.jackson.databind.node.*; //objectnode
 import com.fasterxml.jackson.core.type.*; //typereference
@@ -27,11 +26,16 @@ public class EventCache {
 	private ObjectMapper jsonOM = Utils.jsonOM;
 	private static final DateTimeFormatter dtf = Utils.jsonOM.getDTFormat();
 	private ETACache etamgr;
+	private ToolConfig tc;
 
 	public EventCache() {
 		logger.debug( "Ctor called!!" );
 		System.out.println(" EventCache Iniited" );
 		srcsEvents = new HashMap< Map< String, String >, EventSet >();
+	}
+
+	public void setToolConfig( ToolConfig tc ) {
+		this.tc = tc;
 	}
 
 	public void setJsonOM( ObjectMapper jsonOM ) {
@@ -60,8 +64,7 @@ public class EventCache {
 			logger.debug( "adding event feed {}", trackerFeed );
 
 			JsonNode esrcj = trackerFeedJ.get( "eventSource" );
-			Map< String, String > esrc = jsonOM.convertValue( esrcj.get( "body" ), new TypeReference<Map< String, String > >(){}  );
-			String estype = esrcj.get( "type" ).asText();
+			Map< String, String > esrc = jsonOM.convertValue( esrcj, new TypeReference<Map< String, String > >(){}  );
 
 			logger.debug( "srcsevents {}", srcsEvents );
 			EventSet eset = srcsEvents.get( esrc );
@@ -70,10 +73,10 @@ public class EventCache {
 				logger.debug( "new event source!" );
 
 				try {
-					String iesType = EventSet.types.get( estype );
+					String iesType = tc.getESrcClass( esrc );
 					if( iesType == null )
-						iesType = estype;
-					esClass = String.format( "com.pimco.techops.pint.ds.%sEventSet", iesType );
+						iesType = "Std";
+					esClass = String.format( "com.ahanda.techops.pint.ds.%sEventSet", iesType );
 					Class<?> esc = Class.forName( esClass );
 					eset = (EventSet)esc.newInstance();
 				} catch( Exception e ) {
