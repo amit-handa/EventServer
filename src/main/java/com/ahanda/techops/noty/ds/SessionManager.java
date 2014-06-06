@@ -1,4 +1,4 @@
-package com.pimco.techops.pint.ds;
+package com.ahanda.techops.noty.ds;
 
 import java.util.ArrayList;
 import java.util.Map;
@@ -7,7 +7,7 @@ import java.util.HashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.pimco.techops.pint.ds.*;
+import com.ahanda.techops.noty.ds.*;
 
 public class SessionManager {
 	private Logger logger = LoggerFactory.getLogger( SessionManager.class.getName() );

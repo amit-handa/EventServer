@@ -1,4 +1,4 @@
-package com.pimco.techops.pint.ds.event;
+package com.ahanda.techops.noty.ds.event;
 
 import com.fasterxml.jackson.annotation.*;
 

@@ -1,4 +1,4 @@
-package com.pimco.techops.pint.ds;
+package com.ahanda.techops.noty.ds;
 
 public class Session {
 	private int sessId;

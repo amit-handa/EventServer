@@ -1,7 +1,8 @@
-package com.pimco.techops.pint.ds;
+package com.ahanda.techops.noty.ds;
 
-import com.pimco.techops.pint.ds.event.*;
+import com.ahanda.techops.noty.ds.event.*;
 import com.fasterxml.jackson.databind.*; //ObjectMapper;JsonNode
+
 import java.util.*;	//list
 
 public interface EventSet {
