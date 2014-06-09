@@ -1,131 +1,83 @@
 console.log("strt utils");
 
+function getCookie( c_name ) {
+  var cookies = document.cookie;
+  var c_start = cookies.indexOf( " " + c_name + "=" );
+
+  if ( c_start == -1 ) {
+	c_start = cookies.indexOf( c_name + "=" );
+  }
+
+  if ( c_start == -1 ) {
+	cookies = null;
+  } else {
+	c_start = cookies.indexOf( "=", c_start ) + 1;
+	var c_end = cookies.indexOf( ";", c_start );
+	if ( c_end == -1 ) {
+		c_end = cookies.length;
+	}
+	cookies = unescape( cookies.substring( c_start, c_end ) );
+  }
+
+  console.log( "found cookie-->  " + c_name + " : " + cookies )
+
+  return cookies;
+}
+
+function setCookie(c_name, value, exdays) {
+  var exdate = new Date();
+  exdate.setDate(exdate.getDate() + exdays);
+  var cookies = escape(value) + ((exdays == null) ? "" : "; expires=" + exdate.toUTCString());
+  document.cookie = c_name + "=" + cookies;
+}
+
+function initAuth() {
+  var userId = getCookie( "userId" );
+  var sessAuth = getCookie( "sessAuth" );
+
+  if( !userId || !sessAuth ) {
+	console.log("No cookie");
+	loadLogin();
+  } else {
+	var stime = getCookie( "sessStart" );
+	pbus.verify( userId, stime, sessAuth, pdata.verifyRes, pdata );
+  }
+}
+
+function deleteCookie(c_name) {
+  document.cookie = encodeURIComponent( c_name ) + "=deleted; expires=" + new Date(0).toUTCString();
+}
+
 function loadLogin() {
-	document.getElementById('LoginBox').style.display = ''; 
-	document.getElementById('container').style.display = 'none';
-	console.log("login loaded");
+  document.getElementById('login').style.display = '';
+  document.getElementById('content').style.display = 'none';
+  console.log("login loaded");
 }
-
-function loadUser() {
-	console.log("account loaded");
-    document.getElementById('LoginBox').style.display = 'none';  
-    document.getElementById('container').style.display = '';
-}
-
 
 function login() {
-	console.log("login()");
-	var phoneNo = $('#phone').val().trim();
-	var password = $('#password').val().trim();
-	phoneNo = '+91' + phoneNo;
-	console.log("sending : "+ phoneNo + password);
-	
-	authenticate(phoneNo, password);
-	$('#phone').val('');
-	$('#password').val('');
-	return false;
-}
+  console.info("login !!!!!!!!!!!)");
 
-function checkCreds() {
-	if(!checkCookie()) {
-		console.log("no cookie");
-		loadLogin();
-	} else {
-	    console.log("yes cookie");
-		loadAccount(sampleConversations,sampleContacts);
-    // 	hike.conversationListView = new hike.ConversationListView(sampleConversations);
-	}
-	
-}
+  var userId = $('#userId').val().trim();
+  var password = $('#password').val().trim();
+  console.info("sending : "+ userId + password);
+  pdata.userId = userId;
 
-function addFriend() {
-	var name = $('#friendName').val().trim();
-	var phoneNo = $('#friendPhoneNo').val().trim();
-	
-	hike.conversationListView.collection.add(
-	{
-		personName : name,
-		phoneNo : '+91' + phoneNo,
-	});
-	
-	hike.contactListView.collection.add(
-	{
-		name : name,
-		phoneNo : '+91' + phoneNo,
-	});
-	$('#friendName').val('');
-	$('#friendPhoneNo').val('');
-	return false;
-}
-
-function sendMessage(type,msg)
-{
-	publish(createPacket(type,msg),TOKEN);
-}
-
-function receiveMessage(msg) {
-	networkManager(msg);
+  pbus.authenticate( userId, password, pdata.loginRes, pdata );
+  $('#userId').val('');
+  $('#password').val('');
 }
 
 function signOut() {
-	deleteCookie("phone");
-	deleteCookie("token");
-	location.reload();
-	return false;
+  deleteCookie("phone");
+  deleteCookie("token");
+  location.reload();
+  return false;
 }
 
-function createGroup()
-{
-	if (grpCreated)
-	{
-		return false;
-	}
-	var msg =
-	{
-		'to' : UID + "123456789",
-		"members" : [
-		           {"msisdn":"+919582974797","name":"Gaurav Mittal"},
-		           {"msisdn":"+919999900001","name":"Test User 1"}
-		           ],
-	};
-	
-	hike.conversationListView.collection.add(
-	{
-		personName : 'Test Group 1',
-		phoneNo : UID + "123456789"
-	});
-	var conv = hike.conversationListView.collection.findWhere(
-	{
-		phoneNo : UID + "123456789"
-	});
-	conv.makeItGroup(msg.members);
-	
-	sendMessage("groupChatJoin", msg);
-	grpCreated = true;
-	return false;
-
-}
-
-function deleteGroup()
-{
-	if (!grpCreated)
-	{
-		return false;
-	}
-	var msg =
-	{
-		'to' : UID + "123456789",
-	};
-	
-	hike.conversationListView.collection.remove(
-		hike.conversationListView.collection.findWhere(
-				{
-					phoneNo : UID + "123456789"
-				})
-	);
-	sendMessage("groupChatLeft", msg);
-	grpCreated = false;
-	return false;
+function loadUser() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('content').style.display = '';
+  console.log("account loaded");
 }
 
 console.log("end utils");

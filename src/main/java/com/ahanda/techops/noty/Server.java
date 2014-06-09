@@ -37,6 +37,8 @@ public class Server extends Verticle {
 	private ObjectMapper jsonOM = Utils.jsonOM;
 	private AuthMiddleware auth;
 
+	private Map< String, Handler< Message< JsonObject > > > activeSessions = new HashMap< String, Handler< Message< JsonObject > > >();
+
 	private static final Logger logger = LoggerFactory.getLogger( Server.class.getName() );
 
 	private String _openSession( String uid ) {
@@ -112,54 +114,6 @@ public class Server extends Verticle {
       }
     };
 
-		 /*// first access the buffer as an observable. We do this this way, since
-		// we want to keep using the matchhandler and we can't do that with rxHttpServer
-		Observable<Buffer> reqDataObservable = RxSupport.toObservable(req);
-
-		// after we have the body, we update the element in the database
-		Observable<RxMessage<JsonObject>> updateObservable = reqDataObservable.flatMap(new Func1<Buffer, Observable<RxMessage<JsonObject>>>() {
-			@Override
-			public Observable<RxMessage<JsonObject>> call(Buffer buffer) {
-				System.out.println("buffer = " + buffer);
-				// create the message
-				JsonObject newObject = new JsonObject(buffer.getString(0, buffer.length()));
-				JsonObject matcher = new JsonObject().putString("_id", req.params().get("id"));
-				JsonObject json = new JsonObject().putString("collection", "zips")
-					.putString("action", "update")
-					.putObject("criteria", matcher)
-					.putBoolean("upsert", false)
-					.putBoolean("multi", false)
-					.putObject("objNew", newObject);
-
-				// and return an observable
-				return rxEventBus.send("mongodb-persistor", json);
-			}
-		});
- 
-		// use the previous input again, so we could see whether the update was successful.
-		Observable<RxMessage<JsonObject>> getLatestObservable = updateObservable.flatMap(new Func1<RxMessage<JsonObject>, Observable<RxMessage<JsonObject>>>() {
-			@Override
-			public Observable<RxMessage<JsonObject>> call(RxMessage<JsonObject> jsonObjectRxMessage) {
-				System.out.println("jsonObjectRxMessage = " + jsonObjectRxMessage);
-				// next we get the latest version from the database, after the update has succeeded
-				// this isn't dependent on the previous one. It just has to wait till the previous
-				// one has updated the database, but we could check whether the previous one was successfully
-				JsonObject matcher = new JsonObject().putString("_id", req.params().get("id"));
-				JsonObject json2 = new JsonObject().putString("collection", "zips")
-					.putString("action", "find")
-					.putObject("matcher", matcher);
-				return rxEventBus.send("mongodb-persistor", json2);
-			}
-		});
- 
-		// after we've got the latest version we return this in the response.
-		getLatestObservable.subscribe(new Action1<RxMessage<JsonObject>>() {
-			@Override
-			public void call(RxMessage<JsonObject> jsonObjectRxMessage) {
-				req.response().end(jsonObjectRxMessage.body().encodePrettily());
-			}
-		});*/
-
 	private void init( String datadir ) {
 		sessions = new SessionManager();
 		eventCache = new EventCache();
@@ -185,16 +139,16 @@ public class Server extends Verticle {
 
   public void start() {
 	try {
-	Handler<Message<JsonObject>> pintTracker = new Handler<Message<JsonObject>>() {
+	final Handler<Message<JsonObject>> eventMgr = new Handler<Message<JsonObject>>() {
 		public void handle( Message<JsonObject> msg ) {
-			logger.info( "Received pintTracker message: {}", msg.body() );
+			logger.info( "Received eventMgr message: {}", msg.body() );
 			JsonObject msgo = msg.body();
 			String reply = null;
 			JsonArray opType = msgo.getArray( "http" );
 			if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/events" ) )
+				opType.get( 1 ).equals( "/pint/events" ) ) {
 				eventCache.addEvents( msgo.getObject( "body" ).encode() );
-			else if( opType.get( 0 ).equals( "post" ) &&
+			} else if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/sessions" ) ) {
 				String uid = msgo.getString( "body" );
 				reply = _openSession( uid );
@@ -213,9 +167,40 @@ public class Server extends Verticle {
 		}
 	};
 
-	vertx.eventBus().registerHandler( "PINT.FSReq", pintTracker );
+	Handler<Message<JsonObject>> authMgr = new Handler<Message<JsonObject>>() {
+		public void handle( Message<JsonObject> msg ) {
+			logger.info( "Received authMgr message: {}", msg.body() );
+			JsonObject msgo = msg.body();
+			String reply = null;
+			JsonArray opType = msgo.getArray( "http" );
+			if( opType.get( 0 ).equals( "post" ) &&
+				opType.get( 1 ).equals( "/pint/login" ) ) {
+				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
+				reply = replyj.encode();
+				logger.info( "login done {}", reply );
+			} else if( opType.get( 0 ).equals( "post" ) &&
+				opType.get( 1 ).equals( "/pint/sessions2" ) ) {
+				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
+				reply = replyj.encode();
+				if( replyj.getString( "stat" ).equals( "OK" ) ) {
+					vertx.eventBus().registerHandler( replyj.getString( "sessAuth" ), eventMgr );
+				}
+				logger.info( "login done {}", reply );
+			} else if( opType.get( 0 ).equals( "delete" ) &&
+				opType.get( 1 ).equals( "/pint/sessions2" ) ) {
+				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
+				if( replyj.getString( "stat" ).equals( "OK" ) ) {
+					String busAddr = replyj.getString( "sessAuth" );
+					Handler< Message< JsonObject > > h = activeSessions.remove( busAddr );
+					vertx.eventBus().unregisterHandler( busAddr, h );
+				}
+			}
+			msg.reply( reply );
+		}
+	};
 
-	vertx.eventBus().registerHandler( "PINT.events", pintTracker );
+	vertx.eventBus().registerHandler( "PINT.authMgr", authMgr );
+	vertx.eventBus().registerHandler( "PINT.eventMgr", eventMgr );
 
 	init( System.getProperty( "PINT.datadir" ) );
 

@@ -3,60 +3,97 @@ function PintBus() {
 };
 
 PintBus.prototype = {
-  init : function ( pdata ) {
+  init : function ( busOpen, bothis ) {
 	var self = this;
-	self.ebo = new vertx.EventBus(window.location.protocol + '//' + window.location.hostname + ':' + window.location.port + '/spint');
+	this.ebo = new vertx.EventBus( window.location.protocol + '//' + window.location.hostname + ':' + window.location.port + '/spint');
 
-	self.ebo.onopen = function() {
-	  self.ebo.send('PINT.events', { "http" : [ "post", "/pint/sessions" ],
-		"body" : "ahanda" }, function(reply) {
-		console.info( 'received ' + reply );
-		reply = JSON.parse( reply );
-		console.info( 'AHanda ' + reply.userConfig );
-
-		pdata.eventSources = new EventSources( reply.toolConfig );
-		pdata.eventSources = ko.observable( pdata.eventSources );
-		ko.applyBindings( pdata );
-	  });
+	this.ebo.onopen = function() {
+	  busOpen.call( bothis );
 	};
 
 	self.ebo.onclose = function() {
 	  console.log( 'Bus closed ... re-initing' );
-	  timer = setTimeout( function(){ initPintBus( pdata ) }, 5 * 1000 );
+	  timer = setTimeout( function(){ self.init( busOpen, bothis ) }, 5 * 1000 );
 	  self.ebo = null;
 	}
   },
 
-  authenticate : function (uid, pword) {
-	  console.log("authenticating.... : " + uid+ pword);
+  authenticate : function ( uid, pword, loginRes, lrthis ) {
+	console.log("authenticating.... : " + uid+ pword);
 
-	  if(uid ==  '') {
-		alert('invalid number');
-		return;
-	  }
-	  this.ebo.send('pint.auth', {
-		'user' : uid,
-		'pass' : pword
-	  }, function(reply) {
-		console.log(reply.stat);
-		console.log(reply.token);
-		if(reply.stat === 'ok') {
-		  console.log('invalid login');
-		  alert('invalid login');
-		  return;
-		}
-
-		TOKEN = reply.token;
-		UID = reply.uid;
-		SELF_NUM = uid;
-		console.log("You logged in as " + uid + " and a password of " + pword);
-		setCookie("uid", SELF_NUM, 1);
-		setCookie("token", TOKEN, 1);
-		console.log("setCookie");
-		
-		register(TOKEN);
-		
-		//loadAccount();
-	  });
+	if(uid ==  '') {
+	  alert('invalid number');
+	  return;
 	}
+
+	this.ebo.send('PINT.authMgr', {
+	  "http" : [ "post", "/pint/login" ],
+	  "body" : {
+		'userId' : uid,
+		'password' : pword
+	  } }, function( reply ) {
+	  loginRes.call( lrthis, reply );
+	} );
+  },
+
+  verify : function (uid, stime, sessAuth, verifyRes, vrthis ) {
+	console.log("verifying.... : " + uid + sessAuth);
+
+	if( !uid ) {
+	  console.log( "uid is null/undef. Cannot verify" );
+	  return false;
+	}
+
+	this.ebo.send('PINT.authMgr', {
+	  "http" : [ "post", "/pint/login" ],
+	  "body" : {
+		'userId' : uid,
+		'sessStart' : stime,
+		'sessAuth' : sessAuth
+	  } }, function( reply ) {
+		verifyRes.call( vrthis, reply );
+	  } );
+  },
+
+  openChannel: function( pd, openChanRes, octhis ) {
+	this.ebo.send( 'PINT.authMgr',
+	  { "http" : [ "post", "/pint/sessions2" ],
+		"body" : { 'userId' : pd.userId,
+		  'sessStart' : pd.sessStart + '',
+		  'sessAuth' : pd.sessAuth } },
+	  function( reply ) {
+		openChanRes.call( octhis, reply );
+	  }
+	);
+  },
+
+  getConf : function( pd, confResp, cthis ) {
+	this.ebo.send( pd.sessAuth,
+	  { "http" : [ "post", "/pint/sessions" ],
+		"body" : pd.userId },
+	  function( reply ) {
+		confResp.call( cthis, reply );
+	  }
+	);
+  },
+
+  loadUConf : function( sessAuth, res, rthis ) {
+	// SESSAUTH should be non-null
+	if( !sessAuth ) {
+	  console.log( "sess auth is null/undefined. kindly auth/verify first" );
+	  return;
+	}
+
+	this.ebo.send( sessAuth, { "http" : [ "get", "/pint/users/" + rthis.userId ] }, function( reply ) {
+	  res.call( rthis, reply )
+	} );
+  },
+
+  regChannel : function( sessAuth, sessUpdates, suthis ) {
+	var address = "in." + sessAuth;
+	console.log( "Reg Channel: " + address );
+	this.ebo.registerHandler( address, function( msg ) {
+	  sessUpdates.call( suthis, msg );
+	} );
+  }
 }

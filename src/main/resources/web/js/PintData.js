@@ -1,8 +1,97 @@
 function PintData() {
-  prevESource = null;
-  eventSources = null;
-  allEvents = null;
+  this.uconf = undefined;
+  this.userId = undefined;
+  this.sessStart = undefined;
+  this.sessAuth = undefined;
+
+  this.prevESource = null;
+  this.eventSources = null;
+  this.allEvents = null;
 }
+
+PintData.prototype = {
+  busOpen : function() {
+	initAuth();
+	ko.applyBindings( self, document.getElementById( 'login' ) );
+  },
+
+  loginRes : function( reply ) {
+	reply = JSON.parse( reply );
+	console.log( "Login res: " + reply.stat + reply.sessStart + reply.sessAuth );
+
+	if( reply.stat != 'OK' ) {
+	  console.log('invalid login');
+	  alert('invalid login');
+	  return;
+	}
+	this.signInSuccess( reply );
+  },
+
+  verifyRes : function( reply ) {
+	console.log( reply.stat );
+	if(reply.stat != 'ok') {
+	  console.log("invalid sessAuth");
+	  loadLogin();
+	  return false;
+	}
+
+	this.signInSuccess( reply );
+  },
+
+  signInSuccess : function( reply ) {
+	this.sessAuth = reply.sessAuth;
+	this.userId = reply.userId;
+	this.sessStart = reply.sessStart;
+
+	setCookie( "userId", this.userId, 1 );
+	setCookie( "sessStart", reply.sessStart, 1);
+	setCookie( "sessAuth", this.sessAuth, 1);
+
+	console.log("setCookie");
+
+	loadUser();
+
+	pbus.openChannel( this, this.initChannel, this );
+  },
+
+  initChannel : function( reply ) {
+	console.info( 'initChannel begin: ' + reply );
+	reply = JSON.parse( reply );
+	if( reply.stat != 'OK' ) {
+	  console.log( 'Session Creation Failed' );
+	  return;
+	}
+
+	pbus.regChannel( this.sessAuth, this.sessUpdates, this );
+	pbus.getConf( this, this.confResp, this );
+  },
+
+  confResp : function( reply ) {
+	console.log( "ConfResp: " + reply );
+	reply = JSON.parse( reply );
+	this.eventSources = new EventSources( reply.toolConfig );
+	this.eventSources = ko.observable( this.eventSources );
+	ko.applyBindings( this, document.getElementById( 'content' ) );
+  },
+
+  loadUConfRes : function( reply ) {
+	// list of user subscriptions
+	console.log( 'user conf loaded' );
+	uconf = reply;
+
+	// load feeds for each subscription
+  },
+
+  sessUpdates : function( msg, replyTo ) {
+	console.log( "received message!!" );
+	console.log( msg );
+	this.getMessage( msg ); // /Need to be created
+  },
+
+  getMessage : function( msg ) {
+	console.log( "message is here !" );
+  }
+};
 
 var EventsProto = {
   add : function( events ) {
@@ -84,7 +173,7 @@ loadFeed = function( esid, data ) {
 
 	var events = allEvents.get( esid, data );
 	console.info( "events " + esname + events );
-	eb.send( 'PINT.events', { "http" : [ "post", "/pint/events/search" ],
+	eb.send( 'PINT.server', { "http" : [ "post", "/pint/events/search" ],
 		"body" : [ "EventCache", "findEvents", {
 				"eventSource" : { "type" : esid, "body" : data },
 				"events" : { "body" : events.filter }

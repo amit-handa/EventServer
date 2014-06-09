@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 
 import org.jetbrains.annotations.NotNull;
 import org.vertx.java.core.*; //multimap
+import org.vertx.java.core.json.*;	//JsonObject
 
 import com.jetdrone.vertx.yoke.*; //Middleware,Yoke
 import com.jetdrone.vertx.yoke.middleware.YokeRequest; //yokerequest
@@ -280,6 +281,35 @@ public class AuthMiddleware extends Middleware
 		}
 	}
 
+	public JsonObject checkCredential( final JsonObject msg ) {
+		String userId = msg.getString( "userId" );
+		String password = msg.getString( "password" );
+		String sessAuth = null;
+
+		if( password != null ) {
+			long sessStart = System.currentTimeMillis() / 1000L;
+			sessAuth = getSessAuth( userId, sessStart );
+			msg.putNumber( "sessStart", sessStart );
+			msg.putString( "sessAuth", sessAuth );
+			msg.putString( "stat", "OK" );
+			return msg;
+		}
+
+		sessAuth = msg.getString( "sessAuth" );
+		String tmp = msg.getString( "sessStart" );
+		long sessStart = Long.valueOf( tmp );
+		String nsessAuth = getSessAuth( userId, sessStart );
+		if( sessAuth.equals( nsessAuth ) )
+			msg.putString( "stat", "OK" );
+		else msg.putString( "stat", "FAIL" );
+		return msg;
+	}
+
+	public String getSessAuth( String userId, long sessStart ) {
+		String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
+		return new String(Base64.encodeBase64(mac.doFinal(cval.getBytes())));
+	}
+
 	@Override
 	public void handle(@NotNull
 	final YokeRequest request, @NotNull
@@ -298,9 +328,11 @@ public class AuthMiddleware extends Middleware
 				// return null;
 			}
 
-			String cval = String.format("name=%s&startTime=%d", userId, System.currentTimeMillis() / 1000L);
-			String sessid = new String(Base64.encodeBase64(mac.doFinal(cval.getBytes())));
-			headers.set("Set-Cookie", String.format("%s&sessId=%s", cval, sessid));
+			long sessStart = System.currentTimeMillis() / 1000L;
+			String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
+			String sessid = getSessAuth( userId, sessStart );
+		
+			headers.set("Set-Cookie", String.format("%s&sessAuth=%s", cval, sessid));
 			logger.info("Opensession request: {}", path);
 			next.handle(null);
 			return;
@@ -319,9 +351,9 @@ public class AuthMiddleware extends Middleware
 		}
 
 		final String[] cfields = cvals.split("&", 3);
-		assert (cfields.length == 3 && cfields[0].startsWith("userId=") && cfields[1].startsWith("startTime=") && cfields[2].startsWith("sessId="));
+		assert (cfields.length == 3 && cfields[0].startsWith("userId=") && cfields[1].startsWith("sessStart=") && cfields[2].startsWith("sessAuth="));
 
-		String sessid = cfields[2].substring("sessId=".length());
+		String sessid = cfields[2].substring("sessAuth=".length());
 		String csessid = new String(Base64.encodeBase64(mac.doFinal(String.format("%s&%s", cfields[0], cfields[1]).getBytes())));
 
 		if (!csessid.equals(sessid))
@@ -332,7 +364,7 @@ public class AuthMiddleware extends Middleware
 			return;
 		}
 
-		long startTime = Long.valueOf(cfields[1].substring("startTime=".length())).longValue();
+		long startTime = Long.valueOf(cfields[1].substring("sessStart=".length())).longValue();
 
 		long elapseSecs = System.currentTimeMillis() / 1000L - startTime;
 		if (invalidSessions.contains(sessid) || elapseSecs > Session.validityWindow)
@@ -343,7 +375,7 @@ public class AuthMiddleware extends Middleware
 		}
 
 		headers.set("userId", cfields[0].substring("userId=".length()));
-		headers.set("startTime", cfields[1].substring("startTime=".length()));
+		headers.set("sessStart", cfields[1].substring("sessStart=".length()));
 		if (path.matches(".+/sessions/.*"))
 		{
 			if (accessMethod.equals("DELETE"))
