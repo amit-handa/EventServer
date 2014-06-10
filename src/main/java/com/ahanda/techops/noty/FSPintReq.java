@@ -71,6 +71,7 @@ public class FSPintReq extends Verticle {
                  }
 
 				 JsonObject watchMsg = null;
+				 String toAddr = "PINT.FSReq";
 				try {
 					 //The filename is the context of the event.
 					 Path filename = watchEvent.context();
@@ -84,7 +85,7 @@ public class FSPintReq extends Verticle {
 				}
 
                  // publish on eventbus
-                 vertx.eventBus().publish("PINT.FSReq", watchMsg);
+                 vertx.eventBus().publish( toAddr, watchMsg);
              }
 
              //Reset the key -- this step is critical if you want to receive

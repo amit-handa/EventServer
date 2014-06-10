@@ -1,18 +1,61 @@
 function PintData() {
   this.uconf = undefined;
-  this.userId = undefined;
+  this.userId = ko.observable( '' );
+  console.log( "init pintdata " + this.userId() );
   this.sessStart = undefined;
-  this.sessAuth = undefined;
+  this.sessAuth = ko.observable( '' );
 
   this.prevESource = null;
   this.eventSources = null;
-  this.allEvents = null;
+  this.allEvents = {};
 }
 
 PintData.prototype = {
+  showEvents : function( esdiv ) {
+	  pbus.getEvents( esdiv, this.eventsRes, this );
+  },
+
+  eventsRes : function( events, esdiv ) {
+	console.log( "received events !!! " + events + ' # ' + esdiv );
+
+	var allEventsTable = document.getElementById( 'esource-events' );
+	for( var esdivi = 0, allesdivs = allEventsTable.childNodes.length; esdivi < allesdivs; esdivi++ ) {
+	  var tmp = allEventsTable.childNodes[esdivi];
+	  tmp.style="display:none";
+	}
+
+	events = JSON.parse( events );
+	var data = ko.dataFor( esdiv );
+	var eventsTable = this.allEvents[esdiv];
+	console.log( "checking div " + eventsTable + ' # ' + eskey( this.allEvents ) );
+	if( !eventsTable ) {
+	  console.log( "creating esrc tab !!! " + esdiv );
+	  var esname = esName( data.esid );
+	  var esrcTab = document.getElementById( "esource-names" );
+	  var tabentry = document.createElement( "li" );
+	  tabentry.innerHTML = "<a href='#" + esname + "-events'>" +  esname + "</a>";
+	  esrcTab.appendChild( tabentry );
+
+	  console.log( "creating esrc events !!! " + esdiv );
+	  eventsTable = document.createElement( "div" );
+	  this.allEvents[esdiv] = eventsTable;
+
+	  eventsTable.id = esname + "-events";
+	  eventsTable.setAttribute( "class", "span12" );
+	  eventsTable.style = "display:block";
+	  eventsTable.innerHTML = EventsProto.html();
+	  allEventsTable.appendChild( eventsTable );
+
+	  ko.applyBindings( { body : ko.observableArray( events ) }, eventsTable );
+	}
+
+	eventsTable.style = "display:block";
+  },
+
   busOpen : function() {
 	initAuth();
-	ko.applyBindings( self, document.getElementById( 'login' ) );
+	ko.applyBindings( this, document.getElementById( 'login' ) );
+	ko.applyBindings( this, document.getElementById( 'loggedIn' ) );
   },
 
   loginRes : function( reply ) {
@@ -39,13 +82,14 @@ PintData.prototype = {
   },
 
   signInSuccess : function( reply ) {
-	this.sessAuth = reply.sessAuth;
-	this.userId = reply.userId;
+	this.sessAuth( reply.sessAuth );
+	this.userId( reply.userId );
 	this.sessStart = reply.sessStart;
 
-	setCookie( "userId", this.userId, 1 );
+	console.log( 'signin ' + reply.sessAuth + ' # ' + this.sessAuth() );
+	setCookie( "userId", reply.userId, 1 );
 	setCookie( "sessStart", reply.sessStart, 1);
-	setCookie( "sessAuth", this.sessAuth, 1);
+	setCookie( "sessAuth", this.sessAuth(), 1);
 
 	console.log("setCookie");
 
@@ -62,7 +106,7 @@ PintData.prototype = {
 	  return;
 	}
 
-	pbus.regChannel( this.sessAuth, this.sessUpdates, this );
+	pbus.regChannel( this.sessAuth(), this.sessUpdates, this );
 	pbus.getConf( this, this.confResp, this );
   },
 
@@ -100,7 +144,7 @@ var EventsProto = {
 	}
   },
 
-  html : function( events ) {
+  html : function() {
 	var eview = '<table class="bordered-table"> <thead> <th>eId</th> <th>eTime</th> <th>status</th> <th>message</th> </thead>';
 	var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: eId.ids[0]"></td> <td data-bind="text: eTime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
 	return eview + ebody + '</table>';
@@ -149,47 +193,6 @@ EventSources.prototype = {
   }
 };
 
-loadFeed = function( esid, data ) {
-	var esname = esName( data );
-	esname = esid + ':' + esname;
-	var escontent = document.getElementById( esname );
-
-	var pillc = document.getElementById( 'pill-content' );
-	for( var esdivi = 0, allesdivs = pillc.childNodes.length; esdivi < allesdivs; esdivi++ ) {
-	  var esdiv = pillc.childNodes[esdivi];
-	  esdiv.style="display:none";
-	}
-
-	if( escontent == null ) {
-	  escontent = document.createElement( "div" );
-	  escontent.id = esname;
-	  escontent.style = "display:block";
-
-	  escontent.innerHTML = '<table class="bordered-table"> <thead> <th>' + esname + '</th> </thead></thead>';
-
-	  pillc.appendChild( escontent );
-	}
-	escontent.style = "display:block";
-
-	var events = allEvents.get( esid, data );
-	console.info( "events " + esname + events );
-	eb.send( 'PINT.server', { "http" : [ "post", "/pint/events/search" ],
-		"body" : [ "EventCache", "findEvents", {
-				"eventSource" : { "type" : esid, "body" : data },
-				"events" : { "body" : events.filter }
-		} ]
-	  }, function(reply) {
-	  reply = JSON.parse( reply );
-	  if( events.body == undefined ) {
-		events.body = ko.observableArray( reply );
-		escontent.innerHTML = events.html();
-		ko.applyBindings( events, document.getElementById( esname ) );
-
-	  } else events.add( reply );
-	  console.info( "events received ! " + reply );
-	});
-  };
-
 function esName( esm ) {
   var esn = '';
   var i = 0;
@@ -202,4 +205,15 @@ function esName( esm ) {
   return esn;
 };
 
+function eskey( esm ) {
+  var esn = '';
+  var i = 0;
+  for( var k in esm ) {
+	if( i++ )
+	  esn += '_';
+	esn += k;
+  }
+  console.info( "esname: " + esn );
+  return esn;
+};
 

@@ -44,3 +44,27 @@ ko.bindingHandlers.accordion = {
 	}
   }
 };
+
+$( "#esources" ).on( "click", "li div", esourceClick );
+DELAY = 700;
+function esourceClick( e ) {
+  var data = ko.dataFor( this );
+  console.log( 'clicked ' + e.ctrlKey + ' ' + data + ' ' + this );
+  if( data.children ) {
+	data.toggle( data, e );
+	return;
+  }
+
+  if( !data.clicks ) {
+	var esdiv = this;
+	data.clicks = setTimeout( function() {
+	  console.log( "Single Click !" );
+	  pdata.showEvents( esdiv );
+	  data.clicks = null;
+	  }, DELAY );
+  } else {
+	clearTimeout( data.clicks );
+	console.log( "Double click !" );
+	data.clicks = null;
+  }
+}

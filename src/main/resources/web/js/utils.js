@@ -28,6 +28,7 @@ function setCookie(c_name, value, exdays) {
   var exdate = new Date();
   exdate.setDate(exdate.getDate() + exdays);
   var cookies = escape(value) + ((exdays == null) ? "" : "; expires=" + exdate.toUTCString());
+  console.log( 'set-cookie ' + c_name + ' * ' + value );
   document.cookie = c_name + "=" + cookies;
 }
 
@@ -60,7 +61,6 @@ function login() {
   var userId = $('#userId').val().trim();
   var password = $('#password').val().trim();
   console.info("sending : "+ userId + password);
-  pdata.userId = userId;
 
   pbus.authenticate( userId, password, pdata.loginRes, pdata );
   $('#userId').val('');
@@ -68,14 +68,14 @@ function login() {
 }
 
 function signOut() {
-  deleteCookie("phone");
-  deleteCookie("token");
+  deleteCookie("sessStart");
+  deleteCookie("sessAuth");
   location.reload();
   return false;
 }
 
 function loadUser() {
-  document.getElementById('login').style.display = 'none';
+  //document.getElementById('login').style.display = 'none';
   document.getElementById('content').style.display = '';
   console.log("account loaded");
 }

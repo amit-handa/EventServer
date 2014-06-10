@@ -20,7 +20,8 @@ import com.fasterxml.jackson.databind.node.*; //objectnode
 public class ToolConfig {
 	private static Logger logger = LoggerFactory.getLogger( ToolConfig.class.getName() );
 	JsonNode configJ;
-	Map< Map< String, String >, JsonNode > leafNodes;
+	Map< Map< String, String >, String > leafNodes;
+	List< String > idTypes = new ArrayList< String >();
 
 	// annotation-config
 	private @Value( "${PINT.datadir}" ) String datadir; //$TRDATADIR
@@ -38,8 +39,9 @@ public class ToolConfig {
 		configJ = _read( filepath );
 
 		if( configJ != null ) {
-			leafNodes = new HashMap< Map< String, String >, JsonNode >();
+			leafNodes = new HashMap< Map< String, String >, String >();
 			popuRevMap( configJ );
+			logger.debug( "leafnodes !!! {}", leafNodes.keySet() );
 		}
 
 	    logger.debug( "deserialization info {} {} {}", new Object[] { configJ.size() } );
@@ -47,14 +49,21 @@ public class ToolConfig {
 
 	public void popuRevMap( JsonNode configJ ) {
 		JsonNode childs = configJ.get( "children" );
+		JsonNode idt = configJ.get( "idType" );
+		if( idt != null )
+			idTypes.add( idt.asText() );
+
 		if( childs == null ) {	// leaf level node
-			Map< String, String > id = Utils.jsonOM.convertValue( configJ.get( "id" ), new TypeReference< Map< String, String > >() {} );
-			leafNodes.put( id, configJ );
+			Map< String, String > id = Utils.jsonOM.convertValue( configJ.get( "esid" ), new TypeReference< Map< String, String > >() {} );
+			leafNodes.put( id, idTypes.get( idTypes.size() -1 ) );
 			return;
 		}
 
 		for( int i = 0; i < childs.size(); i++ )
 			popuRevMap( childs.get( i ) );
+
+		if( idt != null )
+			idTypes.remove( idTypes.size() - 1);
 	}
 
 	public JsonNode getConfig() {
@@ -81,15 +90,8 @@ public class ToolConfig {
 	}
 
 	public String getESrcClass( Map< String, String > esrc ) {
-		JsonNode treeN = leafNodes.get( esrc );
-		if( treeN == null )
-			return null;
-
-		JsonNode idN = treeN.findParent( "idType" );
-		if( idN == null )
-			return null;
-
-		return idN.get( "idType" ).asText();
+		String idt = leafNodes.get( esrc );
+		return idt;
 	}
 
 	public static void main( String[] args ) {

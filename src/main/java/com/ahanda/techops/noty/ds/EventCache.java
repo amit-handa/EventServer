@@ -76,7 +76,7 @@ public class EventCache {
 					String iesType = tc.getESrcClass( esrc );
 					if( iesType == null )
 						iesType = "Std";
-					esClass = String.format( "com.ahanda.techops.pint.ds.%sEventSet", iesType );
+					esClass = String.format( "com.ahanda.techops.noty.ds.%sEventSet", iesType );
 					Class<?> esc = Class.forName( esClass );
 					eset = (EventSet)esc.newInstance();
 				} catch( Exception e ) {
@@ -101,7 +101,7 @@ public class EventCache {
 		List< Event > events = null;
 		try {
 			JsonNode argsj = jsonOM.readTree( args );
-			JsonNode eventSourceJ = argsj.get( "eventSource" ).get( "body" );
+			JsonNode eventSourceJ = argsj.get( "eventSource" );
 			assert eventSourceJ != null;
 
 			Map< String, String > eventSourceP = jsonOM.convertValue( eventSourceJ, new TypeReference< Map< String, String > >() {} );

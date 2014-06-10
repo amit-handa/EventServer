@@ -50,7 +50,7 @@
   <appender-ref ref="rollingLogger" />
 </root>
 
-  <logger name="com.pimco.techops.pint" level="DEBUG" />
+  <logger name="com.ahanda.techops.noty" level="DEBUG" />
   <logger name="org.vertx.java" level="DEBUG" />
   <logger name="io.netty" level="DEBUG" />
 </configuration>

@@ -145,8 +145,10 @@ public class Server extends Verticle {
 			JsonObject msgo = msg.body();
 			String reply = null;
 			JsonArray opType = msgo.getArray( "http" );
+			logger.info( "didnt find handler for this msg {} !!!", opType );
 			if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/events" ) ) {
+				logger.info( "pppsssssssssssssssst" );
 				eventCache.addEvents( msgo.getObject( "body" ).encode() );
 			} else if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/sessions" ) ) {
@@ -162,12 +164,14 @@ public class Server extends Verticle {
 					logger.error( "searchEvent Response; {} !", e.getMessage()  );
 				}
 				logger.info( "Found events: {}", events );
+			} else {
+				logger.warn( "didnt find handler for this msg {} !!!", opType );
 			}
 			if( reply != null ) msg.reply( reply );
 		}
 	};
 
-	Handler<Message<JsonObject>> authMgr = new Handler<Message<JsonObject>>() {
+	final Handler<Message<JsonObject>> authMgr = new Handler<Message<JsonObject>>() {
 		public void handle( Message<JsonObject> msg ) {
 			logger.info( "Received authMgr message: {}", msg.body() );
 			JsonObject msgo = msg.body();
@@ -199,8 +203,19 @@ public class Server extends Verticle {
 		}
 	};
 
+	Handler<Message<JsonObject>> FSReqMgr = new Handler<Message<JsonObject>>() {
+		public void handle( Message<JsonObject> msg ) {
+			logger.info( "Received FSReq message: {}", msg.body() );
+			JsonObject msgo = msg.body();
+			String toAddr = msgo.getString( "to" );
+			if( toAddr == null )
+				eventMgr.handle( msg );
+			else authMgr.handle( msg );
+		}
+	};
+
 	vertx.eventBus().registerHandler( "PINT.authMgr", authMgr );
-	vertx.eventBus().registerHandler( "PINT.eventMgr", eventMgr );
+	vertx.eventBus().registerHandler( "PINT.FSReq", FSReqMgr );
 
 	init( System.getProperty( "PINT.datadir" ) );
 
@@ -228,7 +243,7 @@ public class Server extends Verticle {
 	noPermitted.add( new JsonObject() );
 	sockServer.bridge( config, noPermitted, noPermitted );
 
-	httpServer.listen( 8090, "192.168.1.18" );
+	httpServer.listen( 8090 );
 
 	logger.info( "Creating Server on 8090! {}", eventCache );
 	} catch( Exception e ) {
