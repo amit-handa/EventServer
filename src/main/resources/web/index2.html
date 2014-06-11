@@ -1,6 +1,7 @@
 <html>
 <head>
   <link rel="stylesheet/less" href="css/bootstrap.less">
+  <link rel="stylesheet/less" href="css/tree.less">
   <script src="lib/less-1.2.1.min.js"></script>
   <script src='lib/jquery-2.1.1.js'></script>
   <script src='lib/bootstrap-tabs.js'></script>
@@ -44,12 +45,12 @@
 	  <input type="button" class="btn primary" value="Sign Out" onclick="signOut()">
 	</div>
 
-	<div id="content" style="display: none;">
+	<div id="content" class="tree" style="display: none;">
 	  <ul id="esources" data-bind="template: { name : 'esourcesTmpl', data : eventSources }" ></ul>
 
 	  <script id="esourcesTmpl" type="text/html">
 		<li>
-		  <div class="esource" data-bind="text: esName( $data.esid ), accordion: openState"></div>
+		  <a href="#" data-bind="text: esName( $data.esid ), accordion: openState"></a>
 		  <ul class="items" data-bind="template: { name : 'esourcesTmpl', foreach: $data.children }"></ul>
 		</li>
 	  </script>

@@ -45,7 +45,7 @@ ko.bindingHandlers.accordion = {
   }
 };
 
-$( "#esources" ).on( "click", "li div", esourceClick );
+$( "#esources" ).on( "click", "li a", esourceClick );
 DELAY = 700;
 function esourceClick( e ) {
   var data = ko.dataFor( this );
