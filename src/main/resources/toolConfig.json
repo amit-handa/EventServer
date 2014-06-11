@@ -1,0 +1,190 @@
+{ "esid" : { "Root" : "AllEventSources" },
+  "idInfo" : [
+	{ "appName" : [ "NightCycle", "Topaz" ] },
+	{ "env" : [ "PROD", "BETA" ] },
+	{ "region" : [ "U", "A", "E" ] },
+	{ "dboEnv" : [ "PM", "PIMCO" ] },
+	{ "dbEnv" : [ "SYB", "ORA" ] } ],
+  "children" : [
+	{ "esid" : { "Source" : "NightCycle" },
+	  "idType" : "NCD",
+	  "children" : [
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "U",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "U",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "U",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "U",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "U",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "U",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "U",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "U",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "A",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "A",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "A",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "A",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "A",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "A",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "A",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "A",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		} },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "E",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "E",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "E",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "SYB",
+			"region" : "E",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "E",
+			"env" : "BETA",
+			"dboEnv" : "PM"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "E",
+			"env" : "BETA",
+			"dboEnv" : "PIMCO"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "E",
+			"env" : "PROD",
+			"dboEnv" : "PM"
+		  } },
+		{ "esid" : {
+			"appName" : "NightCycle",
+			"dbEnv" : "ORA",
+			"region" : "E",
+			"env" : "PROD",
+			"dboEnv" : "PIMCO"
+		  } }
+	  ]
+	},
+	{ "esid" : { "Domain" : "Topaz" },
+	  "idType" : "Std",
+	  "children" : [
+		{ "esid" : { "appName" : "Topaz", "env" : "PROD" } },
+		{ "esid" : { "appName" : "Topaz", "env" : "BETA" } }
+	  ]
+	}
+  ]
+}
