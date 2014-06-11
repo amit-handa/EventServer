@@ -90,7 +90,9 @@ PintBus.prototype = {
 	console.log( "getevents " + esName( esrc.esid ) );
 	this.ebo.send( pdata.sessAuth(), { "http" : [ "post", "/pint/events/search" ],
 	  "body" : [ "EventCache", "findEvents",
-		{ "eventSource" : esrc.esid, "events" : { "body" : 'true' } }
+		{ "eventSource" : esrc.esid, "events" : {
+		  "cycleDate" : "Feb 10 2014 00:00:00",
+		  "body" : 'true' } }
 	  ]
 	}, function( events ) {
 	  eventsRes.call( ethis, events, esdiv );

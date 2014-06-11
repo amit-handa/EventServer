@@ -145,7 +145,6 @@ public class Server extends Verticle {
 			JsonObject msgo = msg.body();
 			String reply = null;
 			JsonArray opType = msgo.getArray( "http" );
-			logger.info( "didnt find handler for this msg {} !!!", opType );
 			if( opType.get( 0 ).equals( "post" ) &&
 				opType.get( 1 ).equals( "/pint/events" ) ) {
 				logger.info( "pppsssssssssssssssst" );

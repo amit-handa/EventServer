@@ -80,4 +80,28 @@ function loadUser() {
   console.log("account loaded");
 }
 
+function esName( esm ) {
+  var esn = '';
+  var i = 0;
+  for( var k in esm ) {
+	if( i++ )
+	  esn += '_';
+	esn += esm[k];
+  }
+  console.info( "esname: " + esn );
+  return esn;
+}
+
+function eskey( esm ) {
+  var esn = '';
+  var i = 0;
+  for( var k in esm ) {
+	if( i++ )
+	  esn += '_';
+	esn += k;
+  }
+  console.info( "esname: " + esn );
+  return esn;
+}
+
 console.log("end utils");

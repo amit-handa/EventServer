@@ -49,7 +49,8 @@ $( "#esources" ).on( "click", "li div", esourceClick );
 DELAY = 700;
 function esourceClick( e ) {
   var data = ko.dataFor( this );
-  console.log( 'clicked ' + e.ctrlKey + ' ' + data + ' ' + this );
+  console.log( 'clicked ' + this.id + ' ' + this.getAttribute( 'class' ) + ' ' + e.ctrlKey + ' ' + data );
+
   if( data.children ) {
 	data.toggle( data, e );
 	return;
@@ -68,3 +69,20 @@ function esourceClick( e ) {
 	data.clicks = null;
   }
 }
+
+$( "#esource-tabs" ).on( "click", "li a", esrcTabClick );
+function esrcTabClick( e ) {
+  var allEventsTable = document.getElementById( 'esource-events' );
+  console.log( 'child nodes: ' + allEventsTable.toString() );
+  for( var esdivi = 0, allesdivs = allEventsTable.children.length; esdivi < allesdivs; esdivi++ ) {
+	var tmp = allEventsTable.children[esdivi];
+	//tmp.removeAttribute( "class" );
+	tmp.style = "display:none";
+  }
+
+  var e = document.getElementById( this.innerHTML + "-events" );
+  console.log( 'element ' + this.innerHTML );
+  e.style = "display:block";
+  //pdata.allEvents
+}
+

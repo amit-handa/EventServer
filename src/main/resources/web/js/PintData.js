@@ -8,6 +8,7 @@ function PintData() {
   this.prevESource = null;
   this.eventSources = null;
   this.allEvents = {};
+  this.pesdiv = null;
 }
 
 PintData.prototype = {
@@ -16,40 +17,56 @@ PintData.prototype = {
   },
 
   eventsRes : function( events, esdiv ) {
-	console.log( "received events !!! " + events + ' # ' + esdiv );
+	var esdivid = esdiv.innerHTML;
+	console.log( "received events !!! " + events + ' # ' + esdivid );
+	if( this.pesdiv ) {
+	  if( this.pesdiv == esdiv )
+		console.log( "Equalizer!" );
+	  else console.log( "Inequality abounds!" );
+	}
+	this.pesdiv = esdiv;
 
 	var allEventsTable = document.getElementById( 'esource-events' );
-	for( var esdivi = 0, allesdivs = allEventsTable.childNodes.length; esdivi < allesdivs; esdivi++ ) {
+	/*console.log( 'child nodes: ' + allEventsTable.toString() );
+	for( var esdivi = 1, allesdivs = allEventsTable.childNodes.length; esdivi < allesdivs; esdivi++ ) {
 	  var tmp = allEventsTable.childNodes[esdivi];
-	  tmp.style="display:none";
-	}
+	  console.log( 'cnode: ' + eskey( tmp ) );
+	  if( tmp.hasAttribute( "class" ) )
+		tmp.removeAttribute( "class" );
+	}*/
 
 	events = JSON.parse( events );
 	var data = ko.dataFor( esdiv );
-	var eventsTable = this.allEvents[esdiv];
-	console.log( "checking div " + eventsTable + ' # ' + eskey( this.allEvents ) );
-	if( !eventsTable ) {
+	var esrcInfo = this.allEvents[esdivid];
+	console.log( "checking div " + esrcInfo + ' # ' + eskey( this.allEvents ) );
+	if( !esrcInfo ) {
 	  console.log( "creating esrc tab !!! " + esdiv );
 	  var esname = esName( data.esid );
-	  var esrcTab = document.getElementById( "esource-names" );
+	  var esrcTab = document.getElementById( "esource-tabs" );
 	  var tabentry = document.createElement( "li" );
 	  tabentry.innerHTML = "<a href='#" + esname + "-events'>" +  esname + "</a>";
 	  esrcTab.appendChild( tabentry );
 
 	  console.log( "creating esrc events !!! " + esdiv );
 	  eventsTable = document.createElement( "div" );
-	  this.allEvents[esdiv] = eventsTable;
+
+	  esrcInfo = this.allEvents[esdivid] = {};
+
+	  esrcInfo.esrcTab = tabentry;
+	  esrcInfo.events = eventsTable;
+	  esrcInfo.esrcItem = esdiv;
 
 	  eventsTable.id = esname + "-events";
-	  eventsTable.setAttribute( "class", "span12" );
-	  eventsTable.style = "display:block";
+	  //eventsTable.setAttribute( "class", "active" );
 	  eventsTable.innerHTML = EventsProto.html();
 	  allEventsTable.appendChild( eventsTable );
 
 	  ko.applyBindings( { body : ko.observableArray( events ) }, eventsTable );
 	}
 
-	eventsTable.style = "display:block";
+	//esrcInfo.events.setAttribute( "class", "active" );
+	esrcTabClick.call( esrcInfo.esrcTab.childNodes[0] );
+	//$('.tabs').tabs();
   },
 
   busOpen : function() {
@@ -145,9 +162,9 @@ var EventsProto = {
   },
 
   html : function() {
-	var eview = '<table class="bordered-table"> <thead> <th>eId</th> <th>eTime</th> <th>status</th> <th>message</th> </thead>';
-	var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: eId.ids[0]"></td> <td data-bind="text: eTime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
-	return eview + ebody + '</table>';
+	var eview = '<div class="span12"><table class="bordered-table"> <thead> <th>eId</th> <th>eTime</th> <th>status</th> <th>message</th> </thead>';
+	var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: eId.ids.join( \':\' )"></td> <td data-bind="text: eTime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
+	return eview + ebody + '</table></div>';
   }
 };
 
@@ -191,29 +208,5 @@ EventSources.prototype = {
 	console.info( "return " + events );
 	return events;
   }
-};
-
-function esName( esm ) {
-  var esn = '';
-  var i = 0;
-  for( var k in esm ) {
-	if( i++ )
-	  esn += '_';
-	esn += esm[k];
-  }
-  console.info( "esname: " + esn );
-  return esn;
-};
-
-function eskey( esm ) {
-  var esn = '';
-  var i = 0;
-  for( var k in esm ) {
-	if( i++ )
-	  esn += '_';
-	esn += k;
-  }
-  console.info( "esname: " + esn );
-  return esn;
 };
 
