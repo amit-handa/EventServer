@@ -1,0 +1,18 @@
+{
+	"sessKey" : "NQtV5zDQjVqg9vofDSEmX7WA+wXhBhjaxengpeyFh7AANWoMEPe+qebTViYb7db6fAEJJK+tWP8KEh4J10PAFQ==",
+	"dateTime" : "MMM dd yyyy HH:mm:ss",
+	"clientID" : "PINT.webservice",
+
+	"jms" : {
+		"broker" : "tcp://192.168.1.18:61616",
+		"topic" : "PINT.events",
+		"subscription" : "PINT.events.new"
+	},
+
+	"db" : {
+		"address" : "PINT.eventdb",
+		"host" : "localhost",
+		"port" : 27017,
+		"pool_size" : 20
+	}
+}

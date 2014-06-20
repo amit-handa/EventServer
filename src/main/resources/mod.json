@@ -2,7 +2,7 @@
 
   // Java verticle
   "main":"com.ahanda.techops.noty.Server",
-  //"includes":"com.jetdrone~yoke~1.0.3",
+  //"includes":"io.vertx~mod-mongo-persistor~2.1.1",
 
   // In this example we also provide various other versions of the main verticle, you can uncomment this and
   // play around:

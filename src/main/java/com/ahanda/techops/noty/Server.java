@@ -1,7 +1,6 @@
 package com.ahanda.techops.noty;
 
 import com.ahanda.techops.noty.ds.*;
-import com.ahanda.techops.noty.ds.event.*;
 
 import java.util.*;	//objservable
 import java.nio.file.*; //Path,paths,files;
@@ -30,6 +29,7 @@ import com.google.common.io.Resources; //Resources, bytesource;
 import com.google.common.io.ByteSource; //Resources, bytesource;
 
 public class Server extends Verticle {
+	private JsonObject conf;
 	private SessionManager sessions;
 	private EventCache eventCache;
 	private UserConfigManager userconfs;
@@ -84,7 +84,7 @@ public class Server extends Verticle {
 		bodyObserve.subscribe(new Action1<Buffer>() {
 			@Override
 			public void call(Buffer body) {
-				eventCache.addEvents( body.toString() );
+				eventCache.addEvents( new JsonArray( body.toString() ) );
 				req.response().end( "Events Added!" );
 			}
 		});
@@ -100,10 +100,10 @@ public class Server extends Verticle {
 			@Override
 			public void call(Buffer body) {
 				JsonArray bodyj = new JsonArray( body.toString() );
-				List< Event > events = eventCache.findEvents( ((JsonObject)bodyj.get( 2 )).encode() );
+				JsonArray events = eventCache.findEvents( (JsonObject)bodyj.get( 2 ) );
 				String respstr = null;
 				try {
-					respstr =Utils.jsonOM.writeValueAsString( events );
+					respstr = events.encode();
 				} catch( Exception e ) {
 					logger.error( "searchEvent Response; {} !", e.getMessage()  );
 				}
@@ -114,63 +114,81 @@ public class Server extends Verticle {
       }
     };
 
-	private void init( String datadir ) {
-		sessions = new SessionManager();
-		eventCache = new EventCache();
-		userconfs = new UserConfigManager( datadir );
-		toolConfig = new ToolConfig( datadir );
-		eventCache.setToolConfig( toolConfig );
-
-		logger.info( "Launching verticle for FSPintReq" );
-		container.deployVerticle( "com.ahanda.techops.noty.FSPintReq" );
-
-		InputStream is = null;
+	private void readConfig() {
 		try {
-			is = this.getClass().getResourceAsStream( "/common.properties" );
-			Properties propf = new Properties();
-			propf.load( is );
-			auth = new AuthMiddleware( System.getProperty( "PINT.datadir" ), (String)propf.get( "PINT.sessKey" ) );
-			is.close();
-			is = null;
+			conf = new JsonObject( new String( Files.readAllBytes( Paths.get( this.getClass().getResource( "/pintConf.json" ).toURI() ) ) ) );
 		} catch( Exception e ) {
 			logger.error( "common prop error: {} {}", e.getMessage(), e.getStackTrace() );
 		}
 	}
 
-  public void start() {
-	try {
-	final Handler<Message<JsonObject>> eventMgr = new Handler<Message<JsonObject>>() {
-		public void handle( Message<JsonObject> msg ) {
-			logger.info( "Received eventMgr message: {}", msg.body() );
-			JsonObject msgo = msg.body();
-			String reply = null;
-			JsonArray opType = msgo.getArray( "http" );
-			if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/events" ) ) {
-				logger.info( "pppsssssssssssssssst" );
-				eventCache.addEvents( msgo.getObject( "body" ).encode() );
-			} else if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/sessions" ) ) {
-				String uid = msgo.getString( "body" );
-				reply = _openSession( uid );
-				logger.info( "Opened Session for {} : {}", uid, reply );
-			} else if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/events/search" ) ) {
-				List< Event > events = eventCache.findEvents( ((JsonObject)msgo.getArray( "body" ).get( 2 )).encode() );
-				try {
-				reply = jsonOM.writeValueAsString( events );
-				} catch( Exception e ) {
-					logger.error( "searchEvent Response; {} !", e.getMessage()  );
-				}
-				logger.info( "Found events: {}", events );
-			} else {
-				logger.warn( "didnt find handler for this msg {} !!!", opType );
-			}
-			if( reply != null ) msg.reply( reply );
-		}
-	};
+	private void init( JsonObject conf ) {
+		String datadir = conf.getString( "datadir" );
 
-	final Handler<Message<JsonObject>> authMgr = new Handler<Message<JsonObject>>() {
+		sessions = new SessionManager();
+		userconfs = new UserConfigManager( datadir );
+		toolConfig = new ToolConfig( datadir );
+
+		eventCache = new EventCache();
+
+		auth = new AuthMiddleware( datadir, conf.getString( "sessKey" ) );
+
+		container.deployVerticle( "com.ahanda.techops.noty.FSPintReq", conf );
+		container.deployVerticle( "com.ahanda.techops.noty.EventPub", conf );
+		container.deployVerticle( "com.ahanda.techops.noty.EventSub", conf );
+		container.deployVerticle( "com.ahanda.techops.noty.EventDB", conf );
+
+		logger.info( "All verticles/modules deployed !" );
+	}
+
+	@Override
+	public void start() {
+		try {
+		final Handler eventMgr = new Handler<Message<JsonObject>>() {
+			public void handle( Message<JsonObject> msg ) {
+				logger.info( "Received eventMgr message: {}", msg.body() );
+				JsonObject msgo = msg.body();
+				JsonArray opType = msgo.getArray( "http" );
+
+				String reply = null;
+				if( opType.get( 0 ).equals( "post" ) &&
+					opType.get( 1 ).equals( "/pint/events" ) ) {
+					final Message< JsonObject > msgf = msg;
+					vertx.eventBus().send( conf.getString( "clientID" ) + ".pub",
+						msg, new Handler< Message< JsonObject > >() {
+						@Override
+						public void handle( Message< JsonObject > reply ) {
+							msgf.reply( reply );
+						}
+					} );
+				} else if( opType.get( 0 ).equals( "post" ) &&
+					opType.get( 1 ).equals( "/pint/config" ) ) {
+					final Message msgf = msg;
+					vertx.eventBus().send( conf.getString( "db" ).getString( "address" ), msg,
+					  new Handler< Message< JsonObject > >() {
+						@Override
+						public void handle( Message< JsonObject > reply ) {
+						  logger.info( "Opened Session: {}", uid, reply );
+						  msgf.reply( reply );
+						}
+					} );
+				} else if( opType.get( 0 ).equals( "post" ) &&
+					opType.get( 1 ).equals( "/pint/events/search" ) ) {
+					vertx.eventBus().send( conf.getString( "db" ).getString( "address" ), msg,
+					  new Handler< Message< JsonObject > >() {
+						@Override
+						public void handle( Message< JsonObject > reply ) {
+						  logger.info( "Got Events: {}", uid, reply );
+						  msgf.reply( reply );
+						}
+					} );
+				} else {
+					logger.warn( "didnt find handler for this msg {} !!!", opType );
+				}
+			}
+		};
+
+	final Handler authMgr = new Handler<Message<JsonObject>>() {
 		public void handle( Message<JsonObject> msg ) {
 			logger.info( "Received authMgr message: {}", msg.body() );
 			JsonObject msgo = msg.body();
@@ -202,7 +220,7 @@ public class Server extends Verticle {
 		}
 	};
 
-	Handler<Message<JsonObject>> FSReqMgr = new Handler<Message<JsonObject>>() {
+	Handler FSReqMgr = new Handler<Message<JsonObject>>() {
 		public void handle( Message<JsonObject> msg ) {
 			logger.info( "Received FSReq message: {}", msg.body() );
 			JsonObject msgo = msg.body();
@@ -216,14 +234,10 @@ public class Server extends Verticle {
 	vertx.eventBus().registerHandler( "PINT.authMgr", authMgr );
 	vertx.eventBus().registerHandler( "PINT.FSReq", FSReqMgr );
 
-	init( System.getProperty( "PINT.datadir" ) );
+	readConfig();
+	conf.putString( "datadir", System.getProperty( "PINT.datadir" ) );
+	init( conf );
 
-	/*RouteMatcher rm = new RouteMatcher();
-    rm.post("/pint/sessions/:user", openSession );
-    rm.post("/pint/events", addEvents );
-    rm.post("/pint/events/search", searchEvents );
-
-    vertx.createHttpServer().requestHandler(rm).listen(8090);*/
 	Router r = new Router();
     r.post("/pint/sessions/:user", openSession );
     r.post("/pint/events", addEvents );

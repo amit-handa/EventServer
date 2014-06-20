@@ -52,11 +52,12 @@ public class EventPub extends Verticle {
 			prod = sess.createProducer( dest );
 
 			final EventPub self = this;
-			Handler< Message< JsonObject > > pubTopicH = new Handler< Message< JsonObject > >() {
+			Handler	pubTopicH = new Handler< Message< JsonObject > >() {
 				@Override
 				public void handle( Message< JsonObject > msg ) {
-					JsonObject e = msg.body();
-					self.publish( e );
+					JsonObject eventsi = msg.body();
+					JsonObject reply = self.publish( eventsi );
+					msg.reply( reply );
 				}
 			};
 			vertx.eventBus().registerHandler( conf.getString( "clientID" ) + ".pub", pubTopicH );
@@ -65,7 +66,12 @@ public class EventPub extends Verticle {
 		}
 	}
 
-	public void publish( JsonObject msg ) {
+	public JsonObject publish( JsonObject eventsi ) {
+	  JsonArray events = eventsi.getArray( "body" );
+	  String stat = "ok";
+	  StringBuilder details = "";
+	  for( int i = 0; i < events.size(); i++ ) {
+		JsonObject msg = eventss.get( i );
 		try {
 			TextMessage msgstr = sess.createTextMessage( msg.encode() );
 
@@ -74,7 +80,16 @@ public class EventPub extends Verticle {
 			logger.info("Sent message '" + msgstr.getText() + "'");
 		} catch( Exception e ) {
 			logger.error( "error in publishing message!" );
+			details.append( ',' );
+			details.append( i );
+			stat = "error";
 		}
+	  }
+
+	  JsonObject reply = new JsonObject().putString( "status", stat );
+	  if( !details.toString().isEmpty() ) reply.putString( "details", details );
+
+	  return reply;
 	}
 
 	public void stop() {

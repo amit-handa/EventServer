@@ -18,11 +18,14 @@ public class FSPintReq extends Verticle {
 
 	@Override
     public void start() {
+		JsonObject conf = container.config();
+		JsonObject jmsConf = conf.getObject( "jms" );
+
         try {
 			// Set up the watcher
             watcher = FileSystems.getDefault().newWatchService();
             logger.trace("register all watchdirs");
-			Path dirPath = Paths.get(System.getProperty("PINT.datadir") + File.separator + "pintReq" );
+			Path dirPath = Paths.get(conf.getString("datadir") + File.separator + "pintReq" );
 			WatchKey dirKey = dirPath.register(watcher, StandardWatchEventKinds.ENTRY_CREATE );
 			logger.debug("Watcher registered for: {}", dirPath.toString());
 			watchKeys.put( dirKey, dirPath );
@@ -71,7 +74,7 @@ public class FSPintReq extends Verticle {
                  }
 
 				 JsonObject watchMsg = null;
-				 String toAddr = "PINT.FSReq";
+				 String toAddr = container.config().getObject( "jms" ).getString( "clientID" ) + ".pub";
 				try {
 					 //The filename is the context of the event.
 					 Path filename = watchEvent.context();
