@@ -155,7 +155,7 @@ public class Server extends Verticle {
 					opType.get( 1 ).equals( "/pint/events" ) ) {
 					final Message< JsonObject > msgf = msg;
 					vertx.eventBus().send( conf.getString( "clientID" ) + ".pub",
-						msg, new Handler< Message< JsonObject > >() {
+						msgo, new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
 							msgf.reply( reply );
@@ -164,21 +164,22 @@ public class Server extends Verticle {
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/config" ) ) {
 					final Message msgf = msg;
-					vertx.eventBus().send( conf.getString( "db" ).getString( "address" ), msg,
+					vertx.eventBus().send( conf.getObject( "db" ).getString( "address" ), msgo,
 					  new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
-						  logger.info( "Opened Session: {}", uid, reply );
+						  logger.info( "Opened Session: {}", reply );
 						  msgf.reply( reply );
 						}
 					} );
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events/search" ) ) {
-					vertx.eventBus().send( conf.getString( "db" ).getString( "address" ), msg,
+					final Message msgf = msg;
+					vertx.eventBus().send( conf.getObject( "db" ).getString( "address" ), msgo,
 					  new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
-						  logger.info( "Got Events: {}", uid, reply );
+						  logger.info( "Got Events: {}", reply );
 						  msgf.reply( reply );
 						}
 					} );

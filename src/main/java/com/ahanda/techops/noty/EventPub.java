@@ -69,9 +69,9 @@ public class EventPub extends Verticle {
 	public JsonObject publish( JsonObject eventsi ) {
 	  JsonArray events = eventsi.getArray( "body" );
 	  String stat = "ok";
-	  StringBuilder details = "";
+	  StringBuilder details = new StringBuilder();
 	  for( int i = 0; i < events.size(); i++ ) {
-		JsonObject msg = eventss.get( i );
+		JsonObject msg = events.get( i );
 		try {
 			TextMessage msgstr = sess.createTextMessage( msg.encode() );
 
@@ -87,7 +87,7 @@ public class EventPub extends Verticle {
 	  }
 
 	  JsonObject reply = new JsonObject().putString( "status", stat );
-	  if( !details.toString().isEmpty() ) reply.putString( "details", details );
+	  if( !details.toString().isEmpty() ) reply.putString( "details", details.toString() );
 
 	  return reply;
 	}

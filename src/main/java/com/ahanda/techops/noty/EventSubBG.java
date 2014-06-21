@@ -9,12 +9,14 @@ import javax.jms.TopicSubscriber;
 import javax.jms.Destination;
 import javax.jms.TextMessage;
 import javax.jms.JMSException;
+import javax.jms.ExceptionListener;
 
 import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.json.*;	//JsonObject
+import org.vertx.java.core.eventbus.*;	//EventBus
 import org.vertx.java.platform.*;	//Container;Verticle;
 
 import org.slf4j.Logger;
@@ -26,49 +28,82 @@ public class EventSubBG extends Verticle {
     // URL of the JMS server. DEFAULT_BROKER_URL will just mean
     // that JMS server is on localhost
     private String brokerURL;
+    private String clientID;
     private String topic;
     private String subscription;
+
+	private EventBus eb;
+
 	private ConnectionFactory connF;
 	private Connection conn;
 	private Session sess;
 
 	private Topic topicJ;
 	private TopicSubscriber topicSub;
+	private boolean connected = false;
+
+	private void createConnection() {
+		// Create new listener's by registering what topic/queue you care about
+		connF = new ActiveMQConnectionFactory( brokerURL );
+
+		try {
+			// Create a Connection
+			conn = connF.createConnection();
+			conn.setClientID( clientID );
+			conn.start();
+
+			conn.setExceptionListener(new ExceptionListener() {
+				@Override
+				public void onException(JMSException e) {
+					logger.error("JMS Error : {} {}", e.getMessage(), e.getStackTrace() );
+					connected = false;
+					eb.send("jms.reconnect", "");
+				}
+			});
+
+			sess = conn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+			topicJ = sess.createTopic( topic );
+			topicSub = sess.createDurableSubscriber( topicJ, subscription );
+			connected = true;
+			logger.info("jms connected");
+
+			recvMsgs();
+		} catch(Exception e) {
+			logger.error("JMS Error : {} {}", e.getMessage(), e.getStackTrace() );
+			connected = false;
+			eb.send("jms.reconnect", "");
+		}
+	}
 
 	@Override
 	public void start() {
 		JsonObject conf = container.config();
 		JsonObject jmsConf = conf.getObject( "jms" );
 
+		clientID = conf.getString( "clientID" );
 		brokerURL = jmsConf.getString( "broker" );
 		topic = jmsConf.getString( "topic" );
 		subscription = jmsConf.getString( "subscription" );
 
-		try {
-			// Getting JMS connection from the server and starting it
-			connF = new ActiveMQConnectionFactory( brokerURL );
-			conn = connF.createConnection();
-			conn.setClientID( conf.getString( "clientID" ) );
-			conn.start();
-			sess = conn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+		eb = vertx.eventBus();
 
-			topicJ = sess.createTopic( topic );
-			topicSub = sess.createDurableSubscriber( topicJ, subscription );
-		} catch( Exception e ) {
-			logger.error( "error starting EventSubBG verticle: {} {}", e.getMessage(), e.getStackTrace() );
-		}
-
-		final EventSubBG self = this;
-		vertx.setTimer( 500, new Handler< Long >() {
+		eb.registerLocalHandler( "jms.reconnect", new Handler<Message<String>>() {
 			@Override
-			public void handle( Long id ) {
-				self.recvMsgs();
+			public void handle(Message<String> event) {
+				if(!connected)
+					createConnection();
 			}
-		} );
+		});
+
+		connF = new ActiveMQConnectionFactory( brokerURL );
+		createConnection();
 	}
 
 	public void recvMsgs() {
+		boolean err;
 		while( true ) {
+			err = false;
 			try {
 				logger.info( "Going into wait to receive message!" );
 				javax.jms.Message msg = topicSub.receive();
@@ -76,12 +111,14 @@ public class EventSubBG extends Verticle {
 				if (msg instanceof TextMessage) {
 					TextMessage textMsg = (TextMessage) msg;
 					logger.info( "Received message {}", textMsg.getText() );
-					vertx.eventBus().publish( subscription, new JsonObject( textMsg.getText() ) );
+					eb.publish( subscription, new JsonObject( textMsg.getText() ) );
 				}
-			} catch( JMSException e ) {
-				logger.error( "Receiving Message JMS: {} {} {}", new Object[] { e.getErrorCode(), e.getMessage(), e.getStackTrace() } );
 			} catch( Exception e ) {
 				logger.error( "Receiving Message: {} {}", e.getMessage(), e.getStackTrace() );
+				err = true;
+			} finally {
+				if( err )
+					break;
 			}
 		}
 	}

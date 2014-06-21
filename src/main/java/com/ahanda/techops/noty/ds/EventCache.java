@@ -20,9 +20,9 @@ import java.nio.file.Files;
 public class EventCache {
 	private static Logger logger = LoggerFactory.getLogger( EventCache.class.getName() );
 
-	private List< JsonObject > events = new ArrayList< JsonObject >();
-	private Map< EIKey, Object > eindices = new TreeMap< EIKey, Object >();
 	private final List< String > eifields = new ArrayList< String >();
+	private List< JsonObject > events = new ArrayList< JsonObject >();
+	//private Map< EIKey, Object > eindices = new TreeMap< EIKey, Object >();
 
 	private Integer eend = 0;
 
@@ -40,20 +40,20 @@ public class EventCache {
 
 	public JsonArray findEvents( JsonObject sevents ) {
 		logger.debug( "findevents args: {}", sevents );
-		updtEIndex( eindices, events, eend );
+		JsonArray es = new JsonArray();
+		/*updtEIndex( eindices, events, eend );
 		eend = events.size();
 
 		logger.debug( "findevents !!!" );
 		List< Integer > eis = (List< Integer >)getEIndex( true, eindices, eifields, sevents );
-		JsonArray es = new JsonArray();
 		for( int ei : eis )
 			es.addObject( events.get( ei ) );
 
-		logger.debug( "findevents return {} {}", es.size(), es );
+		logger.debug( "findevents return {} {}", es.size(), es );*/
 		return es;
 	}
 
-	private Object getEIndex( boolean readOnly, Map< EIKey, Object > eindices, List< String > eifields, JsonObject e ) {
+	/*private Object getEIndex( boolean readOnly, Map< EIKey, Object > eindices, List< String > eifields, JsonObject e ) {
 		Object cobj = eindices;
 		for( int i = 0; i < eifields.size(); i++ ) {
 			EIKey keyo = new EIKey( eifields.get( i ), e.getValue( eifields.get( i ) ) );
@@ -113,5 +113,5 @@ public class EventCache {
 		}
 
 		ec.findEvents( feventsJ );
-	}
+	}*/
 }
