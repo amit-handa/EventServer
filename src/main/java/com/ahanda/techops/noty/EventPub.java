@@ -8,6 +8,8 @@ import javax.jms.Session;
 import javax.jms.Destination;
 import javax.jms.TextMessage;
 import javax.jms.MessageProducer;
+import javax.jms.JMSException;
+import javax.jms.ExceptionListener;
 
 import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
@@ -25,13 +27,78 @@ public class EventPub extends Verticle {
 
     // URL of the JMS server. DEFAULT_BROKER_URL will just mean
     // that JMS server is on localhost
+	private String pubID;
     private String brokerURL;
     private String topic;
-	private ConnectionFactory connF;
 	private Connection conn;
-	private Session sess;
-	private Destination dest;
-	private MessageProducer prod;
+
+	private EventBus eb;
+
+	private boolean connected = false;
+	private Handler unregH = new Handler< Message< JsonObject > >() {
+	  @Override
+	  public void handle( Message< JsonObject > msg ) {
+		logger.info( "unregistered !" );
+	  }
+	};
+	private Long retryTimer;
+
+	private void createConnection() {
+		ConnectionFactory connF = new ActiveMQConnectionFactory( brokerURL );
+
+		try {
+			eb.unregisterHandler( pubID, unregH );
+			final Connection cconn = connF.createConnection();
+			conn = cconn;
+
+			cconn.setExceptionListener(new ExceptionListener() {
+				@Override
+				public void onException(JMSException e) {
+					logger.error("JMS Error : {} {}", e.getMessage(), e.getStackTrace() );
+					connected = false;
+					eb.send("jms.pub.reconnect", "");
+				}
+			});
+			cconn.start();
+
+			final Session csess = cconn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			Destination dest = csess.createTopic( topic );
+			final MessageProducer cprod = csess.createProducer( dest );
+
+			Handler pubReqH = new Handler< Message< JsonObject > >() {
+			  final Session sess = csess;
+			  final MessageProducer prod = cprod;
+
+			  @Override
+			  public void handle( Message< JsonObject > msg ) {
+				JsonObject eventsi = msg.body();
+				JsonObject reply = publish( sess, prod, eventsi );
+				msg.reply( reply );
+			  }
+			};
+
+			vertx.eventBus().registerHandler( pubID, pubReqH );
+
+			if( retryTimer != null ) {
+			  vertx.cancelTimer( retryTimer );
+			  retryTimer = null;
+			}
+
+			connected = true;
+			logger.info("jms pub connected");
+		} catch(Exception e) {
+			logger.error("JMS Error : {} {}", e.getMessage(), e.getStackTrace() );
+			connected = false;
+
+			if( retryTimer == null ) {
+			  retryTimer = vertx.setPeriodic( 10000, new Handler< Long >() {
+				@Override
+				public void handle( Long id ) {
+				  createConnection();
+				} } );
+			}
+		}
+	}
 
 	@Override
 	public void start() {
@@ -40,40 +107,29 @@ public class EventPub extends Verticle {
 
 		brokerURL = jmsConf.getString( "broker" );
 		topic = jmsConf.getString( "topic" );
+		pubID = conf.getString( "clientID" ) + ".pub";
 
-		try {
-			// Getting JMS connection from the server and starting it
-			connF = new ActiveMQConnectionFactory( brokerURL );
-			conn = connF.createConnection();
-			conn.start();
+		eb = vertx.eventBus();
 
-			sess = conn.createSession( false, Session.AUTO_ACKNOWLEDGE );
-			dest = sess.createTopic( topic );
-			prod = sess.createProducer( dest );
+		eb.registerLocalHandler( "jms.pub.reconnect", new Handler<Message<String>>() {
+			@Override
+			public void handle(Message<String> event) {
+				if(!connected)
+					createConnection();
+			}
+		});
 
-			final EventPub self = this;
-			Handler	pubTopicH = new Handler< Message< JsonObject > >() {
-				@Override
-				public void handle( Message< JsonObject > msg ) {
-					JsonObject eventsi = msg.body();
-					JsonObject reply = self.publish( eventsi );
-					msg.reply( reply );
-				}
-			};
-			vertx.eventBus().registerHandler( conf.getString( "clientID" ) + ".pub", pubTopicH );
-		} catch( Exception e ) {
-			logger.error( "error starting eventpub verticle: {} {}", e.getMessage(), e.getStackTrace() );
-		}
+		createConnection();
 	}
 
-	public JsonObject publish( JsonObject eventsi ) {
+	public static JsonObject publish( Session session, MessageProducer prod, JsonObject eventsi ) {
 	  JsonArray events = eventsi.getArray( "body" );
 	  String stat = "ok";
 	  StringBuilder details = new StringBuilder();
 	  for( int i = 0; i < events.size(); i++ ) {
 		JsonObject msg = events.get( i );
 		try {
-			TextMessage msgstr = sess.createTextMessage( msg.encode() );
+			TextMessage msgstr = session.createTextMessage( msg.encode() );
 
 			// Here we are sending the message!
 			prod.send( msgstr );
