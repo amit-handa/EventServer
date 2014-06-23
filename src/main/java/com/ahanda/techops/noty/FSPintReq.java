@@ -74,7 +74,7 @@ public class FSPintReq extends Verticle {
                  }
 
 				 JsonObject watchMsg = null;
-				 String toAddr = container.config().getString( "clientID" ) + ".pub";
+				 String toAddr = "PINT.FSReq";
 				try {
 					 //The filename is the context of the event.
 					 Path filename = watchEvent.context();

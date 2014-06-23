@@ -43,6 +43,32 @@ public class Server extends Verticle {
 
 	private Map< String, Handler< Message< JsonObject > > > activeSessions = new HashMap< String, Handler< Message< JsonObject > > >();
 
+	private static class DBRespH implements Handler< Message< JsonObject > > {
+	  private JsonArray data = new JsonArray();
+	  private Handler< JsonArray > procData;
+
+	  public DBRespH( Handler< JsonArray > procData ) {
+		this.procData = procData;
+	  }
+
+	  @Override
+	  public void handle( Message< JsonObject > msg ) {
+		JsonObject reply = msg.body();
+		JsonArray results = reply.getArray("results");
+
+		for (Object el : results) {
+			data.add(el);
+		}
+
+		logger.info( "searchEvent Response; {} !", reply );
+		if (reply.getString("status").equals("more-exist")) {
+			msg.reply( new JsonObject(), this );
+		} else {
+			procData.handle( data );
+		}
+	  }
+	};
+
 	private Handler configH = new Handler<HttpServerRequest>() {
       public void handle(final HttpServerRequest req) {
 		Observable<Buffer> bodyObserve = RxSupport.toObservable(req);
@@ -55,14 +81,16 @@ public class Server extends Verticle {
 				logger.info( "Get Config: {}", body.toString() );
 				JsonObject confReq = new JsonObject( body.toString() );
 
-				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
+				Handler< JsonArray > procData = new Handler< JsonArray >() {
 				  @Override
-				  public void handle( Message< JsonObject > msg ) {
-					logger.info( "configH resp prepared {} !", msg.body() );
-					req.response().end( msg.body().getObject( "result" ).encodePrettily() );
+				  public void handle( JsonArray data ) {
+					req.response().end( data.encodePrettily() );
 				  }
 				};
-				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, respH );
+
+				DBRespH dbresph = new DBRespH( procData );
+		
+				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, dbresph );
 			}
 		});
 		}
@@ -99,29 +127,16 @@ public class Server extends Verticle {
 			@Override
 			public void call(Buffer body) {
 				JsonObject confReq = new JsonObject( body.toString() );
-
-				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
-				  JsonArray data = new JsonArray();
-
+				
+				Handler< JsonArray > procData = new Handler< JsonArray >() {
 				  @Override
-				  public void handle( Message< JsonObject > msg ) {
-					JsonObject reply = msg.body();
-					JsonArray results = reply.getArray("results");
-
-					for (Object el : results) {
-						data.add(el);
-					}
-
-					logger.info( "searchEvent Response; {} !", reply );
-					if (reply.getString("status").equals("more-exist")) {
-						msg.reply( new JsonObject(), this );
-					} else {
-						req.response().end( data.encodePrettily() );
-					}
+				  public void handle( JsonArray data ) {
+					req.response().end( data.encodePrettily() );
 				  }
 				};
 
-				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, respH );
+				DBRespH dbresph = new DBRespH( procData );
+				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, dbresph );
 			}
 		});
       }
@@ -161,8 +176,8 @@ public class Server extends Verticle {
 		final Handler eventMgr = new Handler<Message<JsonObject>>() {
 			public void handle( Message<JsonObject> msg ) {
 				logger.info( "Received eventMgr message: {}", msg.body() );
-				JsonObject msgo = msg.body();
-				JsonArray opType = msgo.getArray( "http" );
+				JsonArray opType = msg.body().getArray( "http" );
+				JsonObject msgo = msg.body().getObject( "body" );
 
 				String reply = null;
 				if( opType.get( 0 ).equals( "post" ) &&
@@ -178,25 +193,29 @@ public class Server extends Verticle {
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/config" ) ) {
 					final Message msgf = msg;
-					eb.send( conf.getObject( "db" ).getString( "address" ), msgo,
-					  new Handler< Message< JsonObject > >() {
-						@Override
-						public void handle( Message< JsonObject > reply ) {
-						  logger.info( "Opened Session: {}", reply );
-						  msgf.reply( reply );
-						}
-					} );
+					Handler< JsonArray > procData = new Handler< JsonArray >() {
+					  @Override
+					  public void handle( JsonArray data ) {
+						logger.info( "Opened Session: {}", data.encode() );
+						msgf.reply( data.encodePrettily() );
+					  }
+					};
+
+					DBRespH dbresph = new DBRespH( procData );
+					eb.send( conf.getObject( "db" ).getString( "address" ), msgo, dbresph );
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events/search" ) ) {
 					final Message msgf = msg;
-					eb.send( conf.getObject( "db" ).getString( "address" ), msgo,
-					  new Handler< Message< JsonObject > >() {
-						@Override
-						public void handle( Message< JsonObject > reply ) {
-						  logger.info( "Got Events: {}", reply );
-						  msgf.reply( reply );
-						}
-					} );
+					Handler< JsonArray > procData = new Handler< JsonArray >() {
+					  @Override
+					  public void handle( JsonArray data ) {
+						logger.info( "Got Events: {}", data.encode() );
+						msgf.reply( data.encodePrettily() );
+					  }
+					};
+
+					DBRespH dbresph = new DBRespH( procData );
+					eb.send( conf.getObject( "db" ).getString( "address" ), msgo, dbresph );
 				} else {
 					logger.warn( "didnt find handler for this msg {} !!!", opType );
 				}
