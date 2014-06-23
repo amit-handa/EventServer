@@ -29,6 +29,10 @@ import com.google.common.io.Resources; //Resources, bytesource;
 import com.google.common.io.ByteSource; //Resources, bytesource;
 
 public class Server extends Verticle {
+	private static final Logger logger = LoggerFactory.getLogger( Server.class.getName() );
+
+	private EventBus eb;
+
 	private JsonObject conf;
 	private SessionManager sessions;
 	private EventCache eventCache;
@@ -39,38 +43,26 @@ public class Server extends Verticle {
 
 	private Map< String, Handler< Message< JsonObject > > > activeSessions = new HashMap< String, Handler< Message< JsonObject > > >();
 
-	private static final Logger logger = LoggerFactory.getLogger( Server.class.getName() );
-
-	private String _openSession( String uid ) {
-		Map< String, Object > initialConf = new HashMap< String, Object >();
-		UserConfig uc = userconfs.getUserConf( uid );
-		initialConf.put( "userConfig", uc );
-		initialConf.put( "toolConfig", toolConfig.getConfig() );
-
-		String str = null;
-		try {
-		  str = jsonOM.writeValueAsString( initialConf );
-		} catch( Exception e ) {
-			logger.error( "writing as json! {}, {}", e.getMessage(), e.getStackTrace() );
-		}
-
-		return str;
-	}
-
-	private Handler openSession = new Handler<HttpServerRequest>() {
+	private Handler configH = new Handler<HttpServerRequest>() {
       public void handle(final HttpServerRequest req) {
 		Observable<Buffer> bodyObserve = RxSupport.toObservable(req);
 		final String uid = req.params().get( "user" );
 
-		logger.info( "Received OpenSession Request!" );
+		logger.info( "Received configH Request!" );
 		bodyObserve.subscribe(new Action1<Buffer>() {
 			@Override
 			public void call(Buffer body) {
-				String cval = String.format( "%s; path=/pint; HttpOnly", req.headers().get( "Set-Cookie" ) );
-				req.response().headers().set( "Set-Cookie", cval );
-				String str = _openSession( uid );
-				logger.info( "opensession resp prepared {} !", str  );
-				req.response().end( str );
+				logger.info( "Get Config: {}", body.toString() );
+				JsonObject confReq = new JsonObject( body.toString() );
+
+				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
+				  @Override
+				  public void handle( Message< JsonObject > msg ) {
+					logger.info( "configH resp prepared {} !", msg.body() );
+					req.response().end( msg.body().getObject( "result" ).encodePrettily() );
+				  }
+				};
+				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, respH );
 			}
 		});
 		}
@@ -84,8 +76,15 @@ public class Server extends Verticle {
 		bodyObserve.subscribe(new Action1<Buffer>() {
 			@Override
 			public void call(Buffer body) {
-				eventCache.addEvents( new JsonArray( body.toString() ) );
-				req.response().end( "Events Added!" );
+				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
+				  @Override
+				  public void handle( Message< JsonObject > msg ) {
+					logger.info( "Events Added {} !", msg.body() );
+					req.response().end( msg.body().encode() );
+				  }
+				};
+	
+				eb.send( conf.getString( "clientID" ) + ".pub", new JsonObject().putArray( "body", new JsonArray( body.toString() ) ), respH );
 			}
 		});
       }
@@ -99,16 +98,30 @@ public class Server extends Verticle {
 		bodyObserve.subscribe(new Action1<Buffer>() {
 			@Override
 			public void call(Buffer body) {
-				JsonArray bodyj = new JsonArray( body.toString() );
-				JsonArray events = eventCache.findEvents( (JsonObject)bodyj.get( 2 ) );
-				String respstr = null;
-				try {
-					respstr = events.encode();
-				} catch( Exception e ) {
-					logger.error( "searchEvent Response; {} !", e.getMessage()  );
-				}
-				logger.info( "searchEvent Response; {} !", respstr  );
-				req.response().end( respstr );
+				JsonObject confReq = new JsonObject( body.toString() );
+
+				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
+				  JsonArray data = new JsonArray();
+
+				  @Override
+				  public void handle( Message< JsonObject > msg ) {
+					JsonObject reply = msg.body();
+					JsonArray results = reply.getArray("results");
+
+					for (Object el : results) {
+						data.add(el);
+					}
+
+					logger.info( "searchEvent Response; {} !", reply );
+					if (reply.getString("status").equals("more-exist")) {
+						msg.reply( new JsonObject(), this );
+					} else {
+						req.response().end( data.encodePrettily() );
+					}
+				  }
+				};
+
+				eb.send( conf.getObject( "db" ).getString( "address" ), confReq, respH );
 			}
 		});
       }
@@ -143,6 +156,7 @@ public class Server extends Verticle {
 
 	@Override
 	public void start() {
+	  eb = vertx.eventBus();
 		try {
 		final Handler eventMgr = new Handler<Message<JsonObject>>() {
 			public void handle( Message<JsonObject> msg ) {
@@ -154,7 +168,7 @@ public class Server extends Verticle {
 				if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events" ) ) {
 					final Message< JsonObject > msgf = msg;
-					vertx.eventBus().send( conf.getString( "clientID" ) + ".pub",
+					eb.send( conf.getString( "clientID" ) + ".pub",
 						msgo, new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
@@ -164,7 +178,7 @@ public class Server extends Verticle {
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/config" ) ) {
 					final Message msgf = msg;
-					vertx.eventBus().send( conf.getObject( "db" ).getString( "address" ), msgo,
+					eb.send( conf.getObject( "db" ).getString( "address" ), msgo,
 					  new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
@@ -175,7 +189,7 @@ public class Server extends Verticle {
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events/search" ) ) {
 					final Message msgf = msg;
-					vertx.eventBus().send( conf.getObject( "db" ).getString( "address" ), msgo,
+					eb.send( conf.getObject( "db" ).getString( "address" ), msgo,
 					  new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
@@ -205,7 +219,7 @@ public class Server extends Verticle {
 				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
 				reply = replyj.encode();
 				if( replyj.getString( "stat" ).equals( "OK" ) ) {
-					vertx.eventBus().registerHandler( replyj.getString( "sessAuth" ), eventMgr );
+					eb.registerHandler( replyj.getString( "sessAuth" ), eventMgr );
 				}
 				logger.info( "login done {}", reply );
 			} else if( opType.get( 0 ).equals( "delete" ) &&
@@ -214,7 +228,7 @@ public class Server extends Verticle {
 				if( replyj.getString( "stat" ).equals( "OK" ) ) {
 					String busAddr = replyj.getString( "sessAuth" );
 					Handler< Message< JsonObject > > h = activeSessions.remove( busAddr );
-					vertx.eventBus().unregisterHandler( busAddr, h );
+					eb.unregisterHandler( busAddr, h );
 				}
 			}
 			msg.reply( reply );
@@ -240,7 +254,7 @@ public class Server extends Verticle {
 	init( conf );
 
 	Router r = new Router();
-    r.post("/pint/sessions/:user", openSession );
+    r.post("/pint/config/:user", configH );
     r.post("/pint/events", addEvents );
     r.post("/pint/events/search", searchEvents );
 

@@ -41,13 +41,12 @@ public class EventSubBG extends Verticle {
 	private Topic topicJ;
 	private TopicSubscriber topicSub;
 	private boolean connected = false;
+	private Long retryTimer;
 
 	private void createConnection() {
-		// Create new listener's by registering what topic/queue you care about
 		connF = new ActiveMQConnectionFactory( brokerURL );
 
 		try {
-			// Create a Connection
 			conn = connF.createConnection();
 			conn.setClientID( clientID );
 			conn.start();
@@ -68,11 +67,22 @@ public class EventSubBG extends Verticle {
 			connected = true;
 			logger.info("jms connected");
 
+			if( retryTimer != null ) {
+			  vertx.cancelTimer( retryTimer );
+			  retryTimer = null;
+			}
+
 			recvMsgs();
 		} catch(Exception e) {
 			logger.error("JMS Error : {} {}", e.getMessage(), e.getStackTrace() );
 			connected = false;
-			eb.send("jms.reconnect", "");
+			if( retryTimer == null ) {
+			  retryTimer = vertx.setPeriodic( 10000, new Handler< Long >() {
+				@Override
+				public void handle( Long id ) {
+				  createConnection();
+				} } );
+			}
 		}
 	}
 

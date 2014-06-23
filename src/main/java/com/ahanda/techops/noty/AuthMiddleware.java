@@ -6,6 +6,11 @@ import java.nio.file.*; //Path,paths,files;
 import java.nio.charset.Charset;
 import java.net.URL;
 
+import io.vertx.rxcore.*;	//rxsupport
+import io.vertx.rxcore.java.*;
+import rx.Observable;
+import rx.util.functions.*;	//Func1, Action1
+
 import com.ahanda.techops.noty.ds.*;
 import com.google.common.io.Resources; //Resources, bytesource;
 import com.google.common.io.ByteSource; //Resources, bytesource;
@@ -19,6 +24,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import org.jetbrains.annotations.NotNull;
 import org.vertx.java.core.*; //multimap
 import org.vertx.java.core.json.*;	//JsonObject
+import org.vertx.java.core.buffer.*;	//Buffer
 
 import com.jetdrone.vertx.yoke.*; //Middleware,Yoke
 import com.jetdrone.vertx.yoke.middleware.YokeRequest; //yokerequest
@@ -318,27 +324,38 @@ public class AuthMiddleware extends Middleware
 		MultiMap headers = request.headers();
 		String path = request.path();
 		String accessMethod = request.method();
-		if (path.matches(".+/sessions/.*") && accessMethod.equals("POST"))
-		{ // opensession
-			String userId = path.substring(path.lastIndexOf('/') + 1);
-			UserInfo ui = userInfos.get(userId);
-			if (ui == null)
-			{ // authenticate userId
-				logger.debug("Cannot validate User {}, Fix it, continuing as usual !", userId);
-				// return null;
-			}
+		YokeResponse resp = request.response();
 
-			long sessStart = System.currentTimeMillis() / 1000L;
-			String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
-			String sessid = getSessAuth( userId, sessStart );
+		if (path.matches("/pint/login") && accessMethod.equals("POST")) {
+			logger.info("Login request: {}", path);
+			Observable<Buffer> bodyObserve = RxSupport.toObservable(request);
+			bodyObserve.subscribe(new Action1<Buffer>() {
+			  @Override
+			  public void call(Buffer body) {
+				String userId = body.toString();
+				long sessStart = System.currentTimeMillis() / 1000L;
+				String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
+				String sessid = getSessAuth( userId, sessStart );
+				logger.debug("User {}!", cval );
+
+				if (userId == null) { // authenticate userId
+					logger.debug("Cannot validate User {}, Fix it, continuing as usual !", userId);
+					// return null;
+				}
 		
-			headers.set("Set-Cookie", String.format("%s&sessAuth=%s", cval, sessid));
-			logger.info("Opensession request: {}", path);
-			next.handle(null);
+				YokeResponse resp = request.response();
+				List< String > cvals = request.headers().getAll("cookie");
+				for( String reqcookie : cvals ) {
+				  resp.headers().set( "Set-Cookie", String.format( "%s; expires=Thu, Jan 01 1970 00:00:00 UTC;", reqcookie ) );
+				}
+				resp.headers().set("Set-Cookie", String.format("%s&sessAuth=%s; path=/pint;", cval, sessid));
+				resp.setStatusCode( HttpResponseStatus.OK.code() );
+				resp.end("Login Successful");
+			  }
+			} );
 			return;
 		}
 
-		YokeResponse resp = request.response();
 		String cvals = headers.get("cookie");
 		logger.info("Intercepted msg : headers {} {} {}!!!", new Object[] { path, cvals, headers });
 
