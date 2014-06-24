@@ -177,17 +177,16 @@ public class Server extends Verticle {
 			public void handle( Message<JsonObject> msg ) {
 				logger.info( "Received eventMgr message: {}", msg.body() );
 				JsonArray opType = msg.body().getArray( "http" );
-				JsonObject msgo = msg.body().getObject( "body" );
 
 				String reply = null;
 				if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events" ) ) {
 					final Message< JsonObject > msgf = msg;
 					eb.send( conf.getString( "clientID" ) + ".pub",
-						msgo, new Handler< Message< JsonObject > >() {
+						msg.body(), new Handler< Message< JsonObject > >() {
 						@Override
 						public void handle( Message< JsonObject > reply ) {
-							msgf.reply( reply );
+							msgf.reply( reply.body() );
 						}
 					} );
 				} else if( opType.get( 0 ).equals( "post" ) &&
@@ -202,7 +201,7 @@ public class Server extends Verticle {
 					};
 
 					DBRespH dbresph = new DBRespH( procData );
-					eb.send( conf.getObject( "db" ).getString( "address" ), msgo, dbresph );
+					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), dbresph );
 				} else if( opType.get( 0 ).equals( "post" ) &&
 					opType.get( 1 ).equals( "/pint/events/search" ) ) {
 					final Message msgf = msg;
@@ -215,7 +214,19 @@ public class Server extends Verticle {
 					};
 
 					DBRespH dbresph = new DBRespH( procData );
-					eb.send( conf.getObject( "db" ).getString( "address" ), msgo, dbresph );
+					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), dbresph );
+				} else if( opType.get( 0 ).equals( "post" ) &&
+					opType.get( 1 ).equals( "/pint/DBData" ) ) {
+					final Message msgf = msg;
+					Handler< Message< JsonObject > > procData = new Handler< Message< JsonObject > >() {
+					  @Override
+					  public void handle( Message< JsonObject > data ) {
+						logger.info( "Got Events: {}", data.body().encode() );
+						msgf.reply( data.body().encodePrettily() );
+					  }
+					};
+
+					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), procData );
 				} else {
 					logger.warn( "didnt find handler for this msg {} !!!", opType );
 				}
@@ -234,7 +245,7 @@ public class Server extends Verticle {
 				reply = replyj.encode();
 				logger.info( "login done {}", reply );
 			} else if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/sessions2" ) ) {
+				opType.get( 1 ).equals( "/pint/sessions" ) ) {
 				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
 				reply = replyj.encode();
 				if( replyj.getString( "stat" ).equals( "OK" ) ) {
@@ -242,7 +253,7 @@ public class Server extends Verticle {
 				}
 				logger.info( "login done {}", reply );
 			} else if( opType.get( 0 ).equals( "delete" ) &&
-				opType.get( 1 ).equals( "/pint/sessions2" ) ) {
+				opType.get( 1 ).equals( "/pint/sessions" ) ) {
 				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
 				if( replyj.getString( "stat" ).equals( "OK" ) ) {
 					String busAddr = replyj.getString( "sessAuth" );

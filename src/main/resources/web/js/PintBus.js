@@ -57,7 +57,7 @@ PintBus.prototype = {
 
   openChannel: function( pd, openChanRes, octhis ) {
 	this.ebo.send( 'PINT.authMgr',
-	  { "http" : [ "post", "/pint/sessions2" ],
+	  { "http" : [ "post", "/pint/sessions" ],
 		"body" : { 'userId' : pd.userId(),
 		  'sessStart' : pd.sessStart + '',
 		  'sessAuth' : pd.sessAuth() } },
@@ -68,11 +68,23 @@ PintBus.prototype = {
   },
 
   getConf : function( pd, confResp, cthis ) {
-	this.ebo.send( pd.sessAuth(),
-	  { "http" : [ "post", "/pint/sessions" ],
-		"body" : pd.userId() },
-	  function( reply ) {
+	this.ebo.send( pd.sessAuth()
+	  ,{ "http" : [ "post", "/pint/config" ],
+		"body" : { "action" : "find"
+		  , "collection" : "config"
+		  , "matcher" : { "_id" : "PINT" } } }
+	  ,function( reply ) {
 		confResp.call( cthis, reply );
+	  }
+	);
+  },
+
+  getDBData : function( pd, action, dataResp, cthis ) {
+	this.ebo.send( pd.sessAuth()
+	  ,{ "http" : [ "post", "/pint/DBData" ],
+		"body" : action }
+	  ,function( reply ) {
+		dataResp.call( cthis, reply );
 	  }
 	);
   },

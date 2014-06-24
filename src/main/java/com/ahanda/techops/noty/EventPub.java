@@ -123,6 +123,7 @@ public class EventPub extends Verticle {
 	}
 
 	public static JsonObject publish( Session session, MessageProducer prod, JsonObject eventsi ) {
+	  logger.info( "PUBLISHING Messages {}", eventsi.size() );
 	  JsonArray events = eventsi.getArray( "body" );
 	  String stat = "ok";
 	  StringBuilder details = new StringBuilder();

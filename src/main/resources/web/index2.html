@@ -50,7 +50,7 @@
 
 	  <script id="esourcesTmpl" type="text/html">
 		<li>
-		  <a href="#" data-bind="text: esName( $data.esid ), accordion: openState"></a>
+		  <a href="#" data-bind="text: $data.source, accordion: openState"></a>
 		  <ul class="items" data-bind="template: { name : 'esourcesTmpl', foreach: $data.children }"></ul>
 		</li>
 	  </script>

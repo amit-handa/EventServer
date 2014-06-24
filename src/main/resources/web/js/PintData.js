@@ -130,9 +130,15 @@ PintData.prototype = {
   confResp : function( reply ) {
 	console.log( "ConfResp: " + reply );
 	reply = JSON.parse( reply );
-	this.eventSources = new EventSources( reply.toolConfig );
-	this.eventSources = ko.observable( this.eventSources );
-	ko.applyBindings( this, document.getElementById( 'content' ) );
+	pbus.getDBData( this
+	  , { "action" : "command", "command" : '{ "distinct" : "events", "key" : "source" }' }
+	  , function( data ) {
+		data = JSON.parse( data );
+		this.eventSources = new EventSources( reply[0]['event:hier:source'], data.result.values );
+		this.eventSources = ko.observable( this.eventSources );
+		ko.applyBindings( this, document.getElementById( 'content' ) );
+	  }
+	  , this );
   },
 
   loadUConfRes : function( reply ) {
@@ -168,21 +174,32 @@ var EventsProto = {
   }
 };
 
-function EventSources( esources ) {
+function EventSources( esrcHier, esources ) {
   var self = this;
   self.openState = ko.observable( { focussed : false, shouldOpen : false } );
-  for( var estype in esources ) {
-	if( estype != 'children' )
-	  self[estype] = esources[estype];
+  if( !Array.isArray( esources ) ) {
+	self.source = esources;
+	return;
   }
 
-  if( esources.children ) {
-	var tmp = [];
-	for( var i = 0, len = esources.children.length; i < len; i++ ) {
-	  tmp.push( new EventSources( esources.children[i] ) );
-	}
-	self.children = ko.observableArray( tmp );
+  for( var estype in esrcHier ) {
+	if( estype != 'children' )
+	  self[estype] = esrcHier[estype];
   }
+
+  var hierSrc = new RegExp( self.source );
+  var mesources = esources.filter( function( esource ) { return hierSrc.test( esource ) } );
+  var tmp = [];
+  if( esrcHier.children ) {
+	for( var i = 0, len = esrcHier.children.length; i < len; i++ ) {
+	  tmp.push( new EventSources( esrcHier.children[i], mesources ) );
+	}
+  } else {
+	for( var i = 0, len = mesources.length; i < len; i++ ) {
+	  tmp.push( new EventSources( null, mesources[i] ) );
+	}
+  }
+  self.children = ko.observableArray( tmp );
 };
 
 EventSources.prototype = {
