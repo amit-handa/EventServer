@@ -2,6 +2,8 @@
 	"sessKey" : "NQtV5zDQjVqg9vofDSEmX7WA+wXhBhjaxengpeyFh7AANWoMEPe+qebTViYb7db6fAEJJK+tWP8KEh4J10PAFQ==",
 	"dateTime" : "MMM dd yyyy HH:mm:ss",
 	"clientID" : "PINT.webservice",
+	"events.channel" : "PINT.events",
+	"sessions.channel" : "PINT.sessions",
 
 	"jms" : {
 		"broker" : "tcp://192.168.1.18:61616",

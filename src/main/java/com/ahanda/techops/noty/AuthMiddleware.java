@@ -11,7 +11,6 @@ import io.vertx.rxcore.java.*;
 import rx.Observable;
 import rx.util.functions.*;	//Func1, Action1
 
-import com.ahanda.techops.noty.ds.*;
 import com.google.common.io.Resources; //Resources, bytesource;
 import com.google.common.io.ByteSource; //Resources, bytesource;
 
@@ -25,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.vertx.java.core.*; //multimap
 import org.vertx.java.core.json.*;	//JsonObject
 import org.vertx.java.core.buffer.*;	//Buffer
+import org.vertx.java.core.eventbus.*;	//Message
 
 import com.jetdrone.vertx.yoke.*; //Middleware,Yoke
 import com.jetdrone.vertx.yoke.middleware.YokeRequest; //yokerequest
@@ -41,13 +41,11 @@ public class AuthMiddleware extends Middleware
 	// process all the uconfs and populate user-data
 	private static final Logger logger = LoggerFactory.getLogger(AuthMiddleware.class);
 
-	private static final String macAlgoName = "HmacSHA256";
+	private Mac mac;
 
 	private String datadir; // $TRDATADIR
 
 	private String secretKey; // $TRDATADIR
-
-	private Mac mac;
 
 	private WatchService watcher;
 
@@ -194,8 +192,8 @@ public class AuthMiddleware extends Middleware
 				}
 			});
 
-			mac = Mac.getInstance(macAlgoName);
-			SecretKeySpec sks = new SecretKeySpec(secretKey.getBytes(), macAlgoName);
+			mac = Mac.getInstance(Utils.macAlgoName);
+			SecretKeySpec sks = new SecretKeySpec(secretKey.getBytes(), Utils.macAlgoName);
 			mac.init(sks);
 		}
 		catch (IOException e)
@@ -211,6 +209,19 @@ public class AuthMiddleware extends Middleware
 			logger.warn("Exception found: {} {}", exc.getMessage(), exc.getStackTrace());
 		}
 
+		final Handler authMgr = new Handler<Message<JsonObject>>() {
+			@Override
+			public void handle( Message<JsonObject> msg ) {
+				logger.info( "Received authMgr message: {}", msg.body() );
+				JsonObject msgo = msg.body();
+				String reply = null;
+				JsonObject replyj = Utils.checkCredential( mac, msgo );
+				reply = replyj.encode();
+				logger.info( "login done {}", reply );
+				msg.reply( reply );
+			}
+		};
+		vertx.eventBus().registerHandler( "PINT.authMgr", authMgr );
 		logger.info("Inited ! {} {}", new Object[] { secretKey, mac });
 		return this;
 	}
@@ -287,35 +298,6 @@ public class AuthMiddleware extends Middleware
 		}
 	}
 
-	public JsonObject checkCredential( final JsonObject msg ) {
-		String userId = msg.getString( "userId" );
-		String password = msg.getString( "password" );
-		String sessAuth = null;
-
-		if( password != null ) {
-			long sessStart = System.currentTimeMillis() / 1000L;
-			sessAuth = getSessAuth( userId, sessStart );
-			msg.putNumber( "sessStart", sessStart );
-			msg.putString( "sessAuth", sessAuth );
-			msg.putString( "stat", "OK" );
-			return msg;
-		}
-
-		sessAuth = msg.getString( "sessAuth" );
-		String tmp = msg.getString( "sessStart" );
-		long sessStart = Long.valueOf( tmp );
-		String nsessAuth = getSessAuth( userId, sessStart );
-		if( sessAuth.equals( nsessAuth ) )
-			msg.putString( "stat", "OK" );
-		else msg.putString( "stat", "FAIL" );
-		return msg;
-	}
-
-	public String getSessAuth( String userId, long sessStart ) {
-		String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
-		return new String(Base64.encodeBase64(mac.doFinal(cval.getBytes())));
-	}
-
 	@Override
 	public void handle(@NotNull
 	final YokeRequest request, @NotNull
@@ -335,7 +317,7 @@ public class AuthMiddleware extends Middleware
 				String userId = body.toString();
 				long sessStart = System.currentTimeMillis() / 1000L;
 				String cval = String.format("userId=%s&sessStart=%d", userId, sessStart );
-				String sessid = getSessAuth( userId, sessStart );
+				String sessid = Utils.getSessAuth( mac, userId, sessStart );
 				logger.debug("User {}!", cval );
 
 				if (userId == null) { // authenticate userId
@@ -384,7 +366,7 @@ public class AuthMiddleware extends Middleware
 		long startTime = Long.valueOf(cfields[1].substring("sessStart=".length())).longValue();
 
 		long elapseSecs = System.currentTimeMillis() / 1000L - startTime;
-		if (invalidSessions.contains(sessid) || elapseSecs > Session.validityWindow)
+		if (invalidSessions.contains(sessid) || elapseSecs > SessionMgr.validityWindow)
 		{
 			resp.setStatusCode(419);
 			next.handle(String.format("Session Expired : %d", elapseSecs));

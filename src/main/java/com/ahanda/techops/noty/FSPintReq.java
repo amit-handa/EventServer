@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.vertx.java.core.Handler;
 import org.vertx.java.core.json.*;	//JsonObject
 import org.vertx.java.platform.*;	//Container;Verticle;
+import org.vertx.java.core.eventbus.*;	//Message
 
 import java.util.*;	//map
 import java.io.*;	//ioexception, file
@@ -74,21 +75,34 @@ public class FSPintReq extends Verticle {
                  }
 
 				 JsonObject watchMsg = null;
-				 String toAddr = "PINT.FSReq";
+				 String toAddr = null;
 				try {
 					 //The filename is the context of the event.
 					 Path filename = watchEvent.context();
 					 logger.info("processing changes for: {} {}", filename.toString());
 					filename = dir.resolve( filename );
 					 watchMsg = new JsonObject( new String( Files.readAllBytes( filename ) ) );
+					 toAddr = watchMsg.getString( "to" );
 					 watchMsg.putString( "url", filename.toString() );
 					filename.toFile().delete();
 				} catch( Exception e ) {
 					logger.error( "Reading content: {} {}", e.getMessage(), e.getStackTrace() );
 				}
 
+				if( toAddr == null ) {
+				  logger.error( "'to' is not specified, ignoring the message!" );
+				  continue;
+				}
+
+				final JsonObject msg = watchMsg;
+				Handler< Message< JsonObject > > replyH = new Handler< Message< JsonObject > >() {
+				  @Override
+				  public void handle( Message< JsonObject > reply ) {
+					logger.info( "Reply to the request: {} #### {}", msg, reply.body() );
+				  }
+				};
                  // publish on eventbus
-                 vertx.eventBus().publish( toAddr, watchMsg);
+                 vertx.eventBus().send( toAddr, watchMsg, replyH );
              }
 
              //Reset the key -- this step is critical if you want to receive

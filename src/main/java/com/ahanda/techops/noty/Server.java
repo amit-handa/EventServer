@@ -6,7 +6,7 @@ import java.util.*;	//objservable
 import java.nio.file.*; //Path,paths,files;
 import java.io.*;	// input/output stream
 
-import org.vertx.java.core.Handler;
+import org.vertx.java.core.*; //AsyncResult;Handler;
 import org.vertx.java.platform.*;	//Container;Verticle;
 import org.vertx.java.core.http.*;	//RouteMatcher;HttpServerRequest
 import org.vertx.java.core.sockjs.*;	//RouteMatcher;SockJSServerRequest
@@ -32,22 +32,16 @@ public class Server extends Verticle {
 	private static final Logger logger = LoggerFactory.getLogger( Server.class.getName() );
 
 	private EventBus eb;
+	private String dbdeployid;
 
 	private JsonObject conf;
-	private SessionManager sessions;
-	private EventCache eventCache;
-	private UserConfigManager userconfs;
-	private ToolConfig toolConfig;
-	private ObjectMapper jsonOM = Utils.jsonOM;
 	private AuthMiddleware auth;
-
-	private Map< String, Handler< Message< JsonObject > > > activeSessions = new HashMap< String, Handler< Message< JsonObject > > >();
 
 	private static class DBRespH implements Handler< Message< JsonObject > > {
 	  private JsonArray data = new JsonArray();
-	  private Handler< JsonArray > procData;
+	  private Handler< JsonObject > procData;
 
-	  public DBRespH( Handler< JsonArray > procData ) {
+	  public DBRespH( Handler< JsonObject > procData ) {
 		this.procData = procData;
 	  }
 
@@ -64,10 +58,12 @@ public class Server extends Verticle {
 		if (reply.getString("status").equals("more-exist")) {
 			msg.reply( new JsonObject(), this );
 		} else {
-			procData.handle( data );
+		  reply.putArray( "results", data );
+		  procData.handle( reply );
 		}
 	  }
 	};
+
 
 	private Handler configH = new Handler<HttpServerRequest>() {
       public void handle(final HttpServerRequest req) {
@@ -79,12 +75,16 @@ public class Server extends Verticle {
 			@Override
 			public void call(Buffer body) {
 				logger.info( "Get Config: {}", body.toString() );
-				JsonObject confReq = new JsonObject( body.toString() );
+				JsonObject confReq = new JsonObject()
+				  .putString( "action", "find" )
+				  .putString( "collection", "config" )
+				  .putObject( "matcher", new JsonObject()
+					.putString( "_id", uid ) );
 
-				Handler< JsonArray > procData = new Handler< JsonArray >() {
+				Handler< JsonObject > procData = new Handler< JsonObject >() {
 				  @Override
-				  public void handle( JsonArray data ) {
-					req.response().end( data.encodePrettily() );
+				  public void handle( JsonObject data ) {
+					req.response().end( data.getArray( "results" ).encode() );
 				  }
 				};
 
@@ -112,7 +112,39 @@ public class Server extends Verticle {
 				  }
 				};
 	
-				eb.send( conf.getString( "clientID" ) + ".pub", new JsonObject().putArray( "body", new JsonArray( body.toString() ) ), respH );
+				JsonObject nevents = new JsonObject()
+				  .putString( "action", "save" )
+				  .putString( "collection", "events" )
+				  .putArray( "documents", new JsonArray( body.toString() ) );
+
+				eb.send( conf.getString( "clientID" ) + ".events.new", nevents, respH );
+			}
+		});
+      }
+    };
+
+	private Handler sessMgrH = new Handler<HttpServerRequest>() {
+      public void handle(final HttpServerRequest req) {
+		Observable<Buffer> bodyObserve = RxSupport.toObservable(req);
+
+		logger.info( "Received sessMgr Request!" );
+		bodyObserve.subscribe(new Action1<Buffer>() {
+			@Override
+			public void call( Buffer body ) {
+				Handler< Message<JsonObject> > respH = new Handler< Message< JsonObject > >() {
+				  @Override
+				  public void handle( Message< JsonObject > msg ) {
+					logger.info( "Session updated {} !", msg.body() );
+					req.response().end( msg.body().encode() );
+				  }
+				};
+	
+				JsonObject newSessJ = new JsonObject()
+				  .putString( "action", req.method().equals("post") ? "save" : "delete" )
+				  .putString( "collection", "sessions" )
+				  .putObject( "document", new JsonObject( body.toString() ) );
+
+				eb.send( conf.getString( "clientID" ) + ".sessionMgr", newSessJ, respH );
 			}
 		});
       }
@@ -128,10 +160,10 @@ public class Server extends Verticle {
 			public void call(Buffer body) {
 				JsonObject confReq = new JsonObject( body.toString() );
 				
-				Handler< JsonArray > procData = new Handler< JsonArray >() {
+				Handler< JsonObject > procData = new Handler< JsonObject >() {
 				  @Override
-				  public void handle( JsonArray data ) {
-					req.response().end( data.encodePrettily() );
+				  public void handle( JsonObject data ) {
+					req.response().end( data.getArray( "results" ).encode() );
 				  }
 				};
 
@@ -150,21 +182,26 @@ public class Server extends Verticle {
 		}
 	}
 
+	private Handler modDeployH = new Handler<AsyncResult< String > >() {
+	  public void handle(AsyncResult<String> asyncResult) {
+		  if (asyncResult.succeeded()) {
+			  logger.info( "The mongo-module has been deployed, deployment ID is {}", asyncResult.result() );
+			  dbdeployid = asyncResult.result();
+		  } else {
+			  asyncResult.cause().printStackTrace();
+		  }
+	  } };
+
 	private void init( JsonObject conf ) {
 		String datadir = conf.getString( "datadir" );
 
-		sessions = new SessionManager();
-		userconfs = new UserConfigManager( datadir );
-		toolConfig = new ToolConfig( datadir );
-
-		eventCache = new EventCache();
+		container.deployModule( "io.vertx~mod-mongo-persistor~2.1.1", conf.getObject( "db" ), modDeployH );
 
 		auth = new AuthMiddleware( datadir, conf.getString( "sessKey" ) );
 
 		container.deployVerticle( "com.ahanda.techops.noty.FSPintReq", conf );
-		container.deployVerticle( "com.ahanda.techops.noty.EventPub", conf );
-		container.deployVerticle( "com.ahanda.techops.noty.EventSub", conf );
-		container.deployVerticle( "com.ahanda.techops.noty.EventDB", conf );
+		container.deployVerticle( "com.ahanda.techops.noty.SessionMgr", conf );
+		container.deployVerticle( "com.ahanda.techops.noty.EventMgr", conf );
 
 		logger.info( "All verticles/modules deployed !" );
 	}
@@ -172,140 +209,42 @@ public class Server extends Verticle {
 	@Override
 	public void start() {
 	  eb = vertx.eventBus();
-		try {
-		final Handler eventMgr = new Handler<Message<JsonObject>>() {
-			public void handle( Message<JsonObject> msg ) {
-				logger.info( "Received eventMgr message: {}", msg.body() );
-				JsonArray opType = msg.body().getArray( "http" );
+	  try {
+		readConfig();
+		conf.putString( "datadir", System.getProperty( "PINT.datadir" ) );
+		init( conf );
 
-				String reply = null;
-				if( opType.get( 0 ).equals( "post" ) &&
-					opType.get( 1 ).equals( "/pint/events" ) ) {
-					final Message< JsonObject > msgf = msg;
-					eb.send( conf.getString( "clientID" ) + ".pub",
-						msg.body(), new Handler< Message< JsonObject > >() {
-						@Override
-						public void handle( Message< JsonObject > reply ) {
-							msgf.reply( reply.body() );
-						}
-					} );
-				} else if( opType.get( 0 ).equals( "post" ) &&
-					opType.get( 1 ).equals( "/pint/config" ) ) {
-					final Message msgf = msg;
-					Handler< JsonArray > procData = new Handler< JsonArray >() {
-					  @Override
-					  public void handle( JsonArray data ) {
-						logger.info( "Opened Session: {}", data.encode() );
-						msgf.reply( data.encodePrettily() );
-					  }
-					};
+		Router r = new Router();
+		r.get("/pint/config/:user", configH );
 
-					DBRespH dbresph = new DBRespH( procData );
-					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), dbresph );
-				} else if( opType.get( 0 ).equals( "post" ) &&
-					opType.get( 1 ).equals( "/pint/events/search" ) ) {
-					final Message msgf = msg;
-					Handler< JsonArray > procData = new Handler< JsonArray >() {
-					  @Override
-					  public void handle( JsonArray data ) {
-						logger.info( "Got Events: {}", data.encode() );
-						msgf.reply( data.encodePrettily() );
-					  }
-					};
+		r.post("/pint/events", addEvents );
+		r.post("/pint/sessions", sessMgrH );
+		r.post("/pint/events/search", searchEvents );
 
-					DBRespH dbresph = new DBRespH( procData );
-					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), dbresph );
-				} else if( opType.get( 0 ).equals( "post" ) &&
-					opType.get( 1 ).equals( "/pint/DBData" ) ) {
-					final Message msgf = msg;
-					Handler< Message< JsonObject > > procData = new Handler< Message< JsonObject > >() {
-					  @Override
-					  public void handle( Message< JsonObject > data ) {
-						logger.info( "Got Events: {}", data.body().encode() );
-						msgf.reply( data.body().encodePrettily() );
-					  }
-					};
+		HttpServer httpServer = vertx.createHttpServer();
+		new Yoke( this )
+			//.use( new BodyParser() )
+			.use( new Static( "web" ) )
+			.use( auth )
+			.use( r ).listen( httpServer );
 
-					eb.send( conf.getObject( "db" ).getString( "address" ), msg.body().getObject( "body" ), procData );
-				} else {
-					logger.warn( "didnt find handler for this msg {} !!!", opType );
-				}
-			}
-		};
+		SockJSServer sockServer = vertx.createSockJSServer( httpServer );
+		JsonObject config = new JsonObject().putString( "prefix", "/spint" );
+		JsonArray noPermitted = new JsonArray();
+		noPermitted.add( new JsonObject() );
+		sockServer.bridge( config, noPermitted, noPermitted );
 
-	final Handler authMgr = new Handler<Message<JsonObject>>() {
-		public void handle( Message<JsonObject> msg ) {
-			logger.info( "Received authMgr message: {}", msg.body() );
-			JsonObject msgo = msg.body();
-			String reply = null;
-			JsonArray opType = msgo.getArray( "http" );
-			if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/login" ) ) {
-				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
-				reply = replyj.encode();
-				logger.info( "login done {}", reply );
-			} else if( opType.get( 0 ).equals( "post" ) &&
-				opType.get( 1 ).equals( "/pint/sessions" ) ) {
-				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
-				reply = replyj.encode();
-				if( replyj.getString( "stat" ).equals( "OK" ) ) {
-					eb.registerHandler( replyj.getString( "sessAuth" ), eventMgr );
-				}
-				logger.info( "login done {}", reply );
-			} else if( opType.get( 0 ).equals( "delete" ) &&
-				opType.get( 1 ).equals( "/pint/sessions" ) ) {
-				JsonObject replyj = auth.checkCredential( msgo.getObject( "body" ) );
-				if( replyj.getString( "stat" ).equals( "OK" ) ) {
-					String busAddr = replyj.getString( "sessAuth" );
-					Handler< Message< JsonObject > > h = activeSessions.remove( busAddr );
-					eb.unregisterHandler( busAddr, h );
-				}
-			}
-			msg.reply( reply );
-		}
-	};
+		httpServer.listen( 8090 );
 
-	Handler FSReqMgr = new Handler<Message<JsonObject>>() {
-		public void handle( Message<JsonObject> msg ) {
-			logger.info( "Received FSReq message: {}", msg.body() );
-			JsonObject msgo = msg.body();
-			String toAddr = msgo.getString( "to" );
-			if( toAddr == null )
-				eventMgr.handle( msg );
-			else authMgr.handle( msg );
-		}
-	};
-
-	vertx.eventBus().registerHandler( "PINT.authMgr", authMgr );
-	vertx.eventBus().registerHandler( "PINT.FSReq", FSReqMgr );
-
-	readConfig();
-	conf.putString( "datadir", System.getProperty( "PINT.datadir" ) );
-	init( conf );
-
-	Router r = new Router();
-    r.post("/pint/config/:user", configH );
-    r.post("/pint/events", addEvents );
-    r.post("/pint/events/search", searchEvents );
-
-    HttpServer httpServer = vertx.createHttpServer();
-	new Yoke( this )
-		//.use( new BodyParser() )
-		.use( new Static( "web" ) )
-		.use( auth )
-		.use( r ).listen( httpServer );
-
-	SockJSServer sockServer = vertx.createSockJSServer( httpServer );
-	JsonObject config = new JsonObject().putString( "prefix", "/spint" );
-	JsonArray noPermitted = new JsonArray();
-	noPermitted.add( new JsonObject() );
-	sockServer.bridge( config, noPermitted, noPermitted );
-
-	httpServer.listen( 8090 );
-
-	logger.info( "Creating Server on 8090! {}", eventCache );
-	} catch( Exception e ) {
-		System.out.printf( "Exception :( %s", e );
+		logger.info( "Creating Server on 8090! {}" );
+	  } catch( Exception e ) {
+		  System.out.printf( "Exception :( %s", e );
+	  }
 	}
+
+  public void stop() {
+	  logger.info( "Exiting Server !" );
+	  if( dbdeployid != null )
+		  container.undeployModule( dbdeployid );
   }
 }

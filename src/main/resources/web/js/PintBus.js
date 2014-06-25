@@ -26,12 +26,10 @@ PintBus.prototype = {
 	  return;
 	}
 
-	this.ebo.send('PINT.authMgr', {
-	  "http" : [ "post", "/pint/login" ],
-	  "body" : {
+	this.ebo.send( 'PINT.authMgr', {
 		'userId' : uid,
 		'password' : pword
-	  } }, function( reply ) {
+	  }, function( reply ) {
 	  loginRes.call( lrthis, reply );
 	} );
   },
@@ -45,34 +43,31 @@ PintBus.prototype = {
 	}
 
 	this.ebo.send('PINT.authMgr', {
-	  "http" : [ "post", "/pint/login" ],
-	  "body" : {
 		'userId' : uid,
 		'sessStart' : stime,
 		'sessAuth' : sessAuth
-	  } }, function( reply ) {
+	  }, function( reply ) {
 		verifyRes.call( vrthis, reply );
 	  } );
   },
 
   openChannel: function( pd, openChanRes, octhis ) {
-	this.ebo.send( 'PINT.authMgr',
-	  { "http" : [ "post", "/pint/sessions" ],
-		"body" : { 'userId' : pd.userId(),
-		  'sessStart' : pd.sessStart + '',
-		  'sessAuth' : pd.sessAuth() } },
-	  function( reply ) {
+	this.ebo.send( 'PINT.webservice.sessionMgr'
+	  , { "action" : "save", "collection" : "sessions",
+		  "document" : { 'userId' : pd.userId(),
+			'sessStart' : pd.sessStart + '',
+			'sessAuth' : pd.sessAuth() } }
+	  , function( reply ) {
 		openChanRes.call( octhis, reply );
 	  }
 	);
   },
 
   getConf : function( pd, confResp, cthis ) {
-	this.ebo.send( pd.sessAuth()
-	  ,{ "http" : [ "post", "/pint/config" ],
-		"body" : { "action" : "find"
-		  , "collection" : "config"
-		  , "matcher" : { "_id" : "PINT" } } }
+	this.ebo.send( pd.sessAuth() + '.DB'
+	  ,{ "action" : "find"
+		, "collection" : "config"
+		, "matcher" : { "_id" : "PINT" } }
 	  ,function( reply ) {
 		confResp.call( cthis, reply );
 	  }
@@ -80,17 +75,26 @@ PintBus.prototype = {
   },
 
   getDBData : function( pd, action, dataResp, cthis ) {
-	this.ebo.send( pd.sessAuth()
-	  ,{ "http" : [ "post", "/pint/DBData" ],
-		"body" : action }
+	this.ebo.send( pd.sessAuth() + '.DB'
+	  , action
 	  ,function( reply ) {
 		dataResp.call( cthis, reply );
 	  }
 	);
   },
 
+  esourceSub : function( pd, esource ) {
+	this.ebo.send( 'PINT.webservice.subsMgr'
+	  , { action : 'save', collection : 'subscriptions', 'document' : { sessAuth : pd.sessAuth(), source : esource } }
+	  ,function( reply ) {
+		console.log( "Subscribed " + reply );
+	  }
+	);
+  },
+
+
   regChannel : function( sessAuth, sessUpdates, suthis ) {
-	var address = "in." + sessAuth;
+	var address = sessAuth + '.in';
 	console.log( "Reg Channel: " + address );
 	this.ebo.registerHandler( address, function( msg ) {
 	  sessUpdates.call( suthis, msg );
@@ -99,14 +103,12 @@ PintBus.prototype = {
 
   getEvents : function( esdiv, eventsRes, ethis ) {
 	var esrc = ko.dataFor( esdiv );
-	console.log( "getevents " + esName( esrc.esid ) );
-	this.ebo.send( pdata.sessAuth(), { "http" : [ "post", "/pint/events/search" ],
-	  "body" : [ "EventCache", "findEvents",
-		{ "eventSource" : esrc.esid, "events" : {
-		  "cycleDate" : "Feb 10 2014 00:00:00",
-		  "body" : 'true' } }
-	  ]
-	}, function( events ) {
+	console.log( "getevents " + esrc.source );
+	this.ebo.send( pdata.sessAuth() + '.DB', {
+	  'action' : 'find',
+	  'collection' : 'events',
+	  'matcher' : { "source" : esrc.source } }
+	, function( events ) {
 	  eventsRes.call( ethis, events, esdiv );
 	} );
   }

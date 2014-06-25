@@ -17,6 +17,7 @@ PintData.prototype = {
   },
 
   eventsRes : function( events, esdiv ) {
+	events = events.results;
 	var esdivid = esdiv.innerHTML;
 	console.log( "received events !!! " + events + ' # ' + esdivid );
 	if( this.pesdiv ) {
@@ -35,13 +36,12 @@ PintData.prototype = {
 		tmp.removeAttribute( "class" );
 	}*/
 
-	events = JSON.parse( events );
 	var data = ko.dataFor( esdiv );
 	var esrcInfo = this.allEvents[esdivid];
 	console.log( "checking div " + esrcInfo + ' # ' + eskey( this.allEvents ) );
 	if( !esrcInfo ) {
 	  console.log( "creating esrc tab !!! " + esdiv );
-	  var esname = esName( data.esid );
+	  var esname = data.source;
 	  var esrcTab = document.getElementById( "esource-tabs" );
 	  var tabentry = document.createElement( "li" );
 	  tabentry.innerHTML = "<a href='#" + esname + "-events'>" +  esname + "</a>";
@@ -62,6 +62,7 @@ PintData.prototype = {
 	  allEventsTable.appendChild( eventsTable );
 
 	  ko.applyBindings( { body : ko.observableArray( events ) }, eventsTable );
+	  pbus.esourceSub( this, events[0].source );
 	}
 
 	//esrcInfo.events.setAttribute( "class", "active" );
@@ -77,9 +78,9 @@ PintData.prototype = {
 
   loginRes : function( reply ) {
 	reply = JSON.parse( reply );
-	console.log( "Login res: " + reply.stat + reply.sessStart + reply.sessAuth );
+	console.log( "Login res: " + reply.status + reply.sessStart + reply.sessAuth );
 
-	if( reply.stat != 'OK' ) {
+	if( reply.status != 'ok' ) {
 	  console.log('invalid login');
 	  alert('invalid login');
 	  return;
@@ -88,8 +89,8 @@ PintData.prototype = {
   },
 
   verifyRes : function( reply ) {
-	console.log( reply.stat );
-	if(reply.stat != 'ok') {
+	console.log( reply.status );
+	if(reply.status != 'ok') {
 	  console.log("invalid sessAuth");
 	  loadLogin();
 	  return false;
@@ -117,8 +118,7 @@ PintData.prototype = {
 
   initChannel : function( reply ) {
 	console.info( 'initChannel begin: ' + reply );
-	reply = JSON.parse( reply );
-	if( reply.stat != 'OK' ) {
+	if( reply.status != 'ok' ) {
 	  console.log( 'Session Creation Failed' );
 	  return;
 	}
@@ -129,12 +129,10 @@ PintData.prototype = {
 
   confResp : function( reply ) {
 	console.log( "ConfResp: " + reply );
-	reply = JSON.parse( reply );
 	pbus.getDBData( this
 	  , { "action" : "command", "command" : '{ "distinct" : "events", "key" : "source" }' }
 	  , function( data ) {
-		data = JSON.parse( data );
-		this.eventSources = new EventSources( reply[0]['event:hier:source'], data.result.values );
+		this.eventSources = new EventSources( reply.results[0]['event:hier:source'], data.result.values );
 		this.eventSources = ko.observable( this.eventSources );
 		ko.applyBindings( this, document.getElementById( 'content' ) );
 	  }
@@ -150,13 +148,12 @@ PintData.prototype = {
   },
 
   sessUpdates : function( msg, replyTo ) {
-	console.log( "received message!!" );
-	console.log( msg );
+	console.log( "received message!! " + msg );
 	this.getMessage( msg ); // /Need to be created
   },
 
   getMessage : function( msg ) {
-	console.log( "message is here !" );
+	console.log( "message is here ! " + msg );
   }
 };
 
@@ -169,7 +166,7 @@ var EventsProto = {
 
   html : function() {
 	var eview = '<div class="span12"><table class="bordered-table"> <thead> <th>eId</th> <th>eTime</th> <th>status</th> <th>message</th> </thead>';
-	var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: eId.ids.join( \':\' )"></td> <td data-bind="text: eTime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
+	var ebody = '<tbody data-bind="foreach: body"><td data-bind="text: id"></td> <td data-bind="text: etime"></td><td data-bind="text: status"></td><td data-bind="text: message"></td>';
 	return eview + ebody + '</table></div>';
   }
 };
@@ -204,7 +201,7 @@ function EventSources( esrcHier, esources ) {
 
 EventSources.prototype = {
   toggle : function( esrc, e ) {
-	console.info( "togggggge! " + esName( esrc.esid ) + esName( this.esid ) );
+	console.info( "togggggge! " + esrc.source + this.source );
 	var shouldOpen = esrc.openState().shouldOpen;
 	this.openState( { focussed : true, shouldOpen : !shouldOpen } );
   },
